@@ -150,6 +150,36 @@ AtomicDistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_ver
     return dists;
 }
 
+DistVector calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
+    DistVector dists(graph.size(), INT_MAX);
+    std::vector<bool> removed_from_queue(graph.size(), false);
+    auto comp = [](QueueElement q1, QueueElement q2) { return q1.get_dist() > q2.get_dist(); };
+    std::priority_queue<QueueElement, std::vector<QueueElement>, decltype(comp)> q(comp);
+    dists[start_vertex] = 0;
+    q.push({start_vertex, 0});
+    for (int i = 0; i < graph.size(); i++) {
+        while (!q.empty() && removed_from_queue[q.top().get_vertex()]) {
+            q.pop();
+        }
+        if (q.empty()) {
+            break;
+        }
+        Vertex from = q.top().get_vertex();
+        DistType dist = q.top().get_dist();
+        q.pop();
+        removed_from_queue[from] = true;
+        for (const Edge & edge: graph[from]) {
+            Vertex to = edge.get_to();
+            DistType new_dist = dist + edge.get_weight();
+            if (dists[to] > new_dist) {
+                dists[to] = new_dist;
+                q.push({to, new_dist});
+            }
+        }
+    }
+    return dists;
+}
+
 AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
     std::size_t num_verticies;
     istream >> num_verticies;
@@ -180,6 +210,13 @@ AdjList read_edges_into_adj_list(std::istream & istream) {
     return adj_list;
 }
 
+void write_answer(std::ostream & ostream, const DistVector & dists) {
+    for (DistType dist : dists) {
+        ostream << dist << " ";
+    }
+    ostream << std::endl;
+}
+
 void write_answer(std::ostream & ostream, const AtomicDistVector & dists) {
     for (const std::atomic<DistType> & dist : dists) {
         ostream << std::atomic_load(&dist) << " ";
@@ -191,9 +228,12 @@ int main(int argc, char *argv[]) {
     std::ifstream input("../graph_n10.txt");
     AdjList graph = read_adj_matrix_into_adj_list(input);
 //    AdjList graph = read_edges_into_adj_list(input);
-    int num_threads = 1;
-//    AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>({0, -1});
-    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, 1, {0, -1});
-    AtomicDistVector dists = calc_sssp_dijkstra(graph, 0, num_threads, *multi_queue);
+    Vertex start_vertex = 0;
+//    int num_threads = 10;
+//    AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>({start_vertex, -1});
+//    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, 1, {start_vertex, -1});
+//    AtomicDistVector dists = calc_sssp_dijkstra(graph, 0, num_threads, *multi_queue);
+
+    DistVector dists = calc_sssp_dijkstra_sequential(graph, start_vertex);
     write_answer(std::cout, dists);
 }
