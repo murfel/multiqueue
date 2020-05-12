@@ -47,7 +47,6 @@ private:
 public:
     explicit BlockingQueue(T empty_element) : empty_element(empty_element) {}
     void push(T elem) override {
-//        std::cerr << elem.get_vertex() << elem.get_dist() << "\n";
         std::lock_guard<std::mutex> lock(mutex);
         queue.push(elem);
     }
@@ -126,7 +125,6 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
                 }
                 if (std::atomic_compare_exchange_weak(&dists[e.get_to()], &old_v2_dist, new_v2_dist)) {
                     queue.push({e.get_to(), new_v2_dist});
-                    std::cerr << v << " " <<  e.get_to() << " " << e.get_weight() << "\n";
                     break;
                 }
             }
@@ -170,16 +168,16 @@ AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
 AdjList read_edges_into_adj_list(std::istream & istream) {
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
-    AdjList adj_matrix(num_verticies);
+    AdjList adj_list(num_verticies);
     for (int i = 0; i < num_edges; i++) {
         Vertex from, to;
         DistType weight;
         char c;
         istream >> c >> from >> to >> weight;
-        if (weight == 0) continue;
-        adj_matrix[from].emplace_back(to, weight);
+        if (weight <= 0) continue;
+        adj_list[from].emplace_back(to, weight);
     }
-    return adj_matrix;
+    return adj_list;
 }
 
 void write_answer(std::ostream & ostream, const AtomicDistVector & dists) {
