@@ -8,6 +8,11 @@
 
 #include "multiqueue.h"
 
+#ifdef __linux__
+#define _GNU_SOURCE
+#include <sched.h>
+#endif
+
 using Vertex = std::size_t;
 using DistType = int;
 using DistVector = std::vector<DistType>;
@@ -143,6 +148,12 @@ DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, s
     std::atomic_store(&atomic_dists[0], 0);
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists));
+        #ifdef __linux__
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i, &cpuset);
+            int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
+        #endif
     }
     for (std::thread & thread : threads) {
         thread.join();
