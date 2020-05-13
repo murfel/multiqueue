@@ -53,7 +53,7 @@ public:
         // Invariant: There are always at least two queues and the first one is empty.
         std::size_t num_queues = num_threads * size_multiple + 1;
         queues.reserve(num_queues);
-        for (int i = 0; i < num_queues; i++) {
+        for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(new PriorityQueueWithEmptyElement<T>(empty_element));
         }
     }

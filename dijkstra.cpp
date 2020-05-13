@@ -24,10 +24,10 @@ private:
     DistType weight;
 public:
     Edge(Vertex to, DistType weight) : to(to), weight(weight) {}
-    [[nodiscard]] Vertex get_to() const {
+    Vertex get_to() const {
         return to;
     }
-    [[nodiscard]] DistType get_weight() const {
+    DistType get_weight() const {
         return weight;
     }
 };
@@ -94,10 +94,10 @@ private:
     DistType dist;
 public:
     QueueElement(Vertex vertex, DistType dist) : vertex(vertex), dist(dist) {}
-    [[nodiscard]] Vertex get_vertex() const {
+    Vertex get_vertex() const {
         return vertex;
     }
-    [[nodiscard]] DistType get_dist() const {
+    DistType get_dist() const {
         return dist;
     }
     bool operator==(const QueueElement & o) const {
@@ -173,7 +173,7 @@ DistVector calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t star
     std::priority_queue<QueueElement, std::vector<QueueElement>, decltype(comp)> q(comp);
     dists[start_vertex] = 0;
     q.push({start_vertex, 0});
-    for (int i = 0; i < graph.size(); i++) {
+    for (std::size_t i = 0; i < graph.size(); i++) {
         while (!q.empty() && removed_from_queue[q.top().get_vertex()]) {
             q.pop();
         }
@@ -215,7 +215,7 @@ AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_o
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
     AdjList adj_list(num_verticies);
-    for (int i = 0; i < num_edges; i++) {
+    for (std::size_t i = 0; i < num_edges; i++) {
         Vertex from, to;
         DistType weight;
         istream >> from >> to >> weight;
@@ -241,7 +241,7 @@ void read_run_write(const std::string & filename,
     std::chrono::duration<double> elapsed = finish - start;
     std::cout << "Reading elapsed time: " << elapsed.count() << " s\n";
 
-    for (int i = 0; i < dijkstra_implementations.size(); i++) {
+    for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
         const auto & f = dijkstra_implementations[i];
         start = std::chrono::high_resolution_clock::now();
         DistVector dists = f(graph);
@@ -272,6 +272,10 @@ int main(int argc, char *argv[]) {
     dijkstra_implementations.emplace_back(f2);
     dijkstra_implementations.emplace_back(f3);
 
+    if (argc != 2) {
+        std::cerr << "Please pass a filename as an argument." << std::endl;
+        exit(1);
+    }
     std::string filename(argv[1]);
 
     read_run_write(filename, dijkstra_implementations);
