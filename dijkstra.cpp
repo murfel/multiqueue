@@ -7,6 +7,7 @@
 #include <fstream>
 #include <climits>
 #include <atomic>
+#include <functional>
 
 #include "multiqueue.h"
 
