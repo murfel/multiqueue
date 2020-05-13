@@ -132,20 +132,25 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
     }
 }
 
-AtomicDistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, std::size_t num_threads,
+DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, std::size_t num_threads,
                                     AbstractQueue<QueueElement> & queue) {
     queue.push({start_vertex, 0});
     std::vector<std::thread> threads;
-    AtomicDistVector dists(graph.size());
-    for (std::atomic<DistType> & dist: dists) {
+    AtomicDistVector atomic_dists(graph.size());
+    for (std::atomic<DistType> & dist: atomic_dists) {
         std::atomic_store(&dist, INT_MAX);
     }
-    std::atomic_store(&dists[0], 0);
+    std::atomic_store(&atomic_dists[0], 0);
     for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(dists));
+        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists));
     }
     for (std::thread & thread : threads) {
         thread.join();
+    }
+    DistVector dists;
+    dists.reserve(atomic_dists.size());
+    for (const std::atomic<DistType> & x : atomic_dists) {
+        dists.push_back(x.load());
     }
     return dists;
 }
@@ -195,17 +200,16 @@ AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
     return adj_matrix;
 }
 
-AdjList read_edges_into_adj_list(std::istream & istream) {
+AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_offset = 0) {
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
     AdjList adj_list(num_verticies);
     for (int i = 0; i < num_edges; i++) {
         Vertex from, to;
         DistType weight;
-        char c;
-        istream >> c >> from >> to >> weight;
+        istream >> from >> to >> weight;
         if (weight <= 0) continue;
-        adj_list[from].emplace_back(to, weight);
+        adj_list[from + vertex_numeration_offset].emplace_back(to + vertex_numeration_offset, weight);
     }
     return adj_list;
 }
@@ -217,23 +221,47 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
     ostream << std::endl;
 }
 
-void write_answer(std::ostream & ostream, const AtomicDistVector & dists) {
-    for (const std::atomic<DistType> & dist : dists) {
-        ostream << std::atomic_load(&dist) << " ";
+void read_run_write(const std::string & filename,
+        const std::vector<std::function<DistVector(const AdjList &)>> & dijkstra_implementations) {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::ifstream input("../" + filename + ".in");
+    AdjList graph = read_edges_into_adj_list(input, -1);
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    std::cout << "Reading elapsed time: " << elapsed.count() << " s\n";
+
+    for (int i = 0; i < dijkstra_implementations.size(); i++) {
+        const auto & f = dijkstra_implementations[i];
+        start = std::chrono::high_resolution_clock::now();
+        DistVector dists = f(graph);
+        finish = std::chrono::high_resolution_clock::now();
+        elapsed = finish - start;
+        std::cout << "Dijkstra implementation #" << i << " elapsed time: " << elapsed.count() << " s\n";
+        std::ofstream output("../" + filename + ".out" + std::to_string(i));
+        write_answer(output, dists);
     }
-    ostream << std::endl;
 }
 
-int main(int argc, char *argv[]) {
-    std::ifstream input("../graph_n10.txt");
-    AdjList graph = read_adj_matrix_into_adj_list(input);
-//    AdjList graph = read_edges_into_adj_list(input);
+int main() {
     Vertex start_vertex = 0;
-//    int num_threads = 10;
-//    AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>({start_vertex, -1});
-//    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, 1, {start_vertex, -1});
-//    AtomicDistVector dists = calc_sssp_dijkstra(graph, 0, num_threads, *multi_queue);
+    int num_threads = 10;
+    QueueElement empty_element = {start_vertex, -1};
+    AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>(empty_element);
+    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, 1, empty_element);
 
-    DistVector dists = calc_sssp_dijkstra_sequential(graph, start_vertex);
-    write_answer(std::cout, dists);
+    auto f = [start_vertex] (const AdjList & graph)
+            { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
+    auto f2 = [start_vertex, num_threads, blocking_queue] (const AdjList & graph)
+            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue); };
+    auto f3 = [start_vertex, num_threads, multi_queue] (const AdjList & graph)
+            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); };
+
+    std::vector<std::function<DistVector(const AdjList &)>> dijkstra_implementations;
+    dijkstra_implementations.emplace_back(f);
+    dijkstra_implementations.emplace_back(f2);
+    dijkstra_implementations.emplace_back(f3);
+
+    std::string filename = "rome_small";
+
+    read_run_write(filename, dijkstra_implementations);
 }
