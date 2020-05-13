@@ -5,6 +5,8 @@
 #include <queue>
 #include <cstring>
 #include <fstream>
+#include <climits>
+#include <atomic>
 
 #include "multiqueue.h"
 
