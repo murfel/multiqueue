@@ -242,7 +242,7 @@ void read_run_write(const std::string & filename,
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     Vertex start_vertex = 0;
     int num_threads = 10;
     QueueElement empty_element = {start_vertex, -1};
@@ -261,7 +261,7 @@ int main() {
     dijkstra_implementations.emplace_back(f2);
     dijkstra_implementations.emplace_back(f3);
 
-    std::string filename = "rome_small";
+    std::string filename(argv[1]);
 
     read_run_write(filename, dijkstra_implementations);
 }
