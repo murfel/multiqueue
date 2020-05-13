@@ -76,7 +76,7 @@ private:
     T empty_element;
 public:
     MultiQueue(const int num_threads, const int size_multiple, T empty_element) :
-            queue(Multiqueue(num_threads, size_multiple, empty_element)), empty_element(empty_element) {}
+            queue(num_threads, size_multiple, empty_element), empty_element(empty_element) {}
     void push(T elem) override {
         queue.push(elem);
     }
