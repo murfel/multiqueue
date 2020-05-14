@@ -264,11 +264,18 @@ void read_run_write(const std::string & filename,
 }
 
 int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        std::cerr << "Usage: ./dijkstra num_threads size_multiple filename" << std::endl;
+        exit(1);
+    }
+    std::size_t num_threads = atoi(argv[1]);
+    std::size_t size_multiple = atoi(argv[2]);
+    std::string filename(argv[3]);
+
     Vertex start_vertex = 0;
-    int num_threads = 10;
     QueueElement empty_element = {start_vertex, -1};
     AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>(empty_element);
-    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, 1, empty_element);
+    AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple, empty_element);
 
     auto f = [start_vertex] (const AdjList & graph)
             { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
@@ -281,12 +288,6 @@ int main(int argc, char *argv[]) {
     dijkstra_implementations.emplace_back(f);
     dijkstra_implementations.emplace_back(f2);
     dijkstra_implementations.emplace_back(f3);
-
-    if (argc != 2) {
-        std::cerr << "Please pass a filename as an argument." << std::endl;
-        exit(1);
-    }
-    std::string filename(argv[1]);
 
     read_run_write(filename, dijkstra_implementations);
 }
