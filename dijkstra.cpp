@@ -106,6 +106,9 @@ public:
     bool operator==(const QueueElement & o) const {
         return o.get_vertex() == vertex && o.get_dist() == dist;
     }
+    bool operator!=(const QueueElement & o) const {
+        return !operator==(o);
+    }
     bool operator<(const QueueElement & o) const {
         return dist < o.get_dist();
     }

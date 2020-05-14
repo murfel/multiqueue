@@ -13,12 +13,17 @@
 
 
 template <class T>
-class PriorityQueueWithEmptyElement {
+class LockablePriorityQueueWithEmptyElement {
 private:
     std::priority_queue<T> queue;
     const T empty_element;
 public:
-    explicit PriorityQueueWithEmptyElement(const T empty_element) : empty_element(empty_element) {}
+    explicit LockablePriorityQueueWithEmptyElement(const T empty_element) : empty_element(empty_element) {}
+
+    LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) :
+        empty_element(o.empty_element) {}
+
+    std::mutex mutex;
 
     void push(T value) {
         queue.push(value);
@@ -44,68 +49,79 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::mutex mutex;
-    std::vector<std::unique_ptr<PriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<LockablePriorityQueueWithEmptyElement<T>> queues;
+    std::size_t num_non_empty_queues = 0;
+    std::mutex num_non_empty_queues_mutex;
     T empty_element;
+    std::random_device dev;
+    std::mt19937 rng;
+    std::uniform_int_distribution<std::mt19937::result_type> dist; // []
+    std::size_t gen_random_queue_index() {
+        return dist(rng);
+    }
 public:
-    Multiqueue(const int num_threads, const int size_multiple, T empty_element) :
-            empty_element(empty_element) {
-        // Invariant: There are always at least two queues and the first one is empty.
-        std::size_t num_queues = num_threads * size_multiple + 1;
+    Multiqueue(int num_threads, int size_multiple, T empty_element) :
+            empty_element(empty_element), rng(dev()), dist(0, std::max(2, num_threads * size_multiple) - 1) {
+        std::size_t num_queues = std::max(2, num_threads * size_multiple);
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            queues.emplace_back(new PriorityQueueWithEmptyElement<T>(empty_element));
+            queues.emplace_back(empty_element);
         }
     }
     void push(T value) {
-        std::lock_guard<std::mutex> lock(mutex);
-        std::uniform_int_distribution<std::mt19937::result_type> dist(1, queues.size() - 1); // []
-        std::random_device dev;
-        std::mt19937 rng(dev());
-        std::size_t i = dist(rng);
-        queues[i]->push(value);
+        auto & queue = queues[gen_random_queue_index()];
+        std::lock_guard<std::mutex> lock(queue.mutex);
+        if (queue.top() == empty_element) {
+            std::lock_guard<std::mutex> num_lock(num_non_empty_queues_mutex);
+            num_non_empty_queues++;
+        }
+        queue.push(value);
     }
     T pop() {
-        std::lock_guard<std::mutex> lock(mutex);
         while (true) {
-            std::random_device dev;
-            std::mt19937 rng(dev());
-            std::uniform_int_distribution<std::mt19937::result_type> dist(1, queues.size() - 1); // []
-            std::size_t i, j;
-            i = dist(rng);
-            do {
-                j = dist(rng);
-            } while (i == j && queues.size() > 2);
-
-            std::size_t min_ind = std::min(i, j);
-            std::size_t max_ind = std::max(i, j);
-            i = min_ind;
-            j = max_ind;
-            T val_i = queues[i]->top();
-            T val_j = queues[j]->top();
-            PriorityQueueWithEmptyElement<T> * to_pop;
-            if (val_i == empty_element) {
-                to_pop = queues[j].get();
-            } else if (val_j == empty_element) {
-                to_pop = queues[i].get();
-            } else {
-                to_pop = queues[val_i < val_j ? i : j].get();
-            }
-
-            if (val_j == empty_element && queues.size() > 2) {
-                queues.erase(queues.begin() + j);
-            }
-            if (val_i == empty_element && queues.size() > 2) {
-                queues.erase(queues.begin() + i);
-            }
-            if (val_i == empty_element && val_j == empty_element) {
-                if (queues.size() == 2) {
+            {
+                std::lock_guard<std::mutex> lock(num_non_empty_queues_mutex);
+                if (num_non_empty_queues == 0) {
                     return empty_element;
                 }
+            }
+
+            std::size_t i, j;
+            i = gen_random_queue_index();
+            do {
+                j = gen_random_queue_index();
+            } while (i == j);
+
+            auto & q1 = queues[std::min(i, j)];
+            auto & q2 = queues[std::max(i, j)];
+
+            std::unique_lock<std::mutex> lock1(q1.mutex);
+            std::unique_lock<std::mutex> lock2(q2.mutex);
+
+            if (q1.top() == empty_element && q2.top() == empty_element) {
                 continue;
             }
 
-            return to_pop->pop();
+            T e1 = q1.top();
+            T e2 = q2.top();
+
+            if (e1 == empty_element || (e2 != empty_element && e2 < e1)) {
+                lock1.unlock();
+                T e = q2.pop();
+                if (q2.top() == empty_element) {
+                    std::lock_guard<std::mutex> lock(num_non_empty_queues_mutex);
+                    num_non_empty_queues--;
+                }
+                return e;
+            } else {
+                lock2.unlock();
+                T e = q1.pop();
+                if (q1.top() == empty_element) {
+                    std::lock_guard<std::mutex> lock(num_non_empty_queues_mutex);
+                    num_non_empty_queues--;
+                }
+                return e;
+            }
         }
     }
 };

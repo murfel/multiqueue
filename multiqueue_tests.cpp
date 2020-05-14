@@ -13,6 +13,9 @@ public:
     bool operator==(const QueueElement & o) const {
         return val == o.val;
     }
+    bool operator!=(const QueueElement & o) const {
+        return !operator==(o);
+    }
     friend std::ostream & operator<<(std::ostream & out, const QueueElement & element) {
         out << element.val << " " << element.x;
         return out;
