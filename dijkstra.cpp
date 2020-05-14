@@ -238,7 +238,11 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
 void read_run_write(const std::string & filename,
         const std::vector<std::function<DistVector(const AdjList &)>> & dijkstra_implementations) {
     auto start = std::chrono::high_resolution_clock::now();
-    std::ifstream input("../" + filename + ".in");
+    std::string filename_prefix;
+    #ifdef __APPLE__
+        filename_prefix = "../";
+    #endif
+    std::ifstream input(filename_prefix + filename + ".in");
     AdjList graph = read_edges_into_adj_list(input, -1);
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
@@ -251,7 +255,7 @@ void read_run_write(const std::string & filename,
         finish = std::chrono::high_resolution_clock::now();
         elapsed = finish - start;
         std::cout << "Dijkstra implementation #" << i << " elapsed time: " << elapsed.count() << " s\n";
-        std::ofstream output("../" + filename + ".out" + std::to_string(i));
+        std::ofstream output(filename_prefix + filename + ".out" + std::to_string(i));
         write_answer(output, dists);
     }
 }
