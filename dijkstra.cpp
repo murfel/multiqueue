@@ -176,8 +176,7 @@ DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, s
 DistVector calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
     DistVector dists(graph.size(), INT_MAX);
     std::vector<bool> removed_from_queue(graph.size(), false);
-    auto comp = [](QueueElement q1, QueueElement q2) { return q1.get_dist() > q2.get_dist(); };
-    std::priority_queue<QueueElement, std::vector<QueueElement>, decltype(comp)> q(comp);
+    std::priority_queue<QueueElement> q;
     dists[start_vertex] = 0;
     q.push({start_vertex, 0});
     for (std::size_t i = 0; i < graph.size(); i++) {
