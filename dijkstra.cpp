@@ -233,9 +233,9 @@ AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_o
 
 void write_answer(std::ostream & ostream, const DistVector & dists) {
     for (DistType dist : dists) {
-        ostream << dist << " ";
+        ostream << dist << '\n';
     }
-    ostream << std::endl;
+    ostream << '\n';
 }
 
 void read_run_write(const std::string & filename,
@@ -264,6 +264,8 @@ void read_run_write(const std::string & filename,
 }
 
 int main(int argc, char *argv[]) {
+    std::ios_base::sync_with_stdio(false);
+
     if (argc != 4) {
         std::cerr << "Usage: ./dijkstra num_threads size_multiple filename" << std::endl;
         exit(1);
