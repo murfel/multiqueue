@@ -98,12 +98,12 @@ public:
             std::unique_lock<std::mutex> lock1(q1.mutex);
             std::unique_lock<std::mutex> lock2(q2.mutex);
 
-            if (q1.top() == empty_element && q2.top() == empty_element) {
-                continue;
-            }
-
             T e1 = q1.top();
             T e2 = q2.top();
+
+            if (e1 == empty_element && e2 == empty_element) {
+                continue;
+            }
 
             if (e1 == empty_element || (e2 != empty_element && e2 < e1)) {
                 lock1.unlock();

@@ -127,15 +127,16 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
             continue;
         }
         for (Edge e : graph[v]) {
-            if (v == e.get_to()) continue;
+            Vertex v2 = e.get_to();
+            if (v == v2) continue;
             DistType new_v2_dist = v_dist + e.get_weight();
             while (true) {
-                DistType old_v2_dist = std::atomic_load(&dists[e.get_to()]);
-                if (old_v2_dist < new_v2_dist) {
+                DistType old_v2_dist = std::atomic_load(&dists[v2]);
+                if (old_v2_dist <= new_v2_dist) {
                     break;
                 }
-                if (std::atomic_compare_exchange_weak(&dists[e.get_to()], &old_v2_dist, new_v2_dist)) {
-                    queue.push({e.get_to(), new_v2_dist});
+                if (std::atomic_compare_exchange_strong(&dists[v2], &old_v2_dist, new_v2_dist)) {
+                    queue.push({v2, new_v2_dist});
                     break;
                 }
             }
