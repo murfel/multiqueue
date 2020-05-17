@@ -110,7 +110,7 @@ public:
         return !operator==(o);
     }
     bool operator<(const QueueElement & o) const {
-        return dist < o.get_dist();
+        return dist > o.get_dist();
     }
 };
 

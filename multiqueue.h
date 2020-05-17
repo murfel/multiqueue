@@ -105,7 +105,7 @@ public:
                 continue;
             }
 
-            if (e1 == empty_element || (e2 != empty_element && e2 < e1)) {
+            if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
                 lock1.unlock();
                 T e = q2.pop();
                 if (q2.top() == empty_element) {
