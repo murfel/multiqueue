@@ -47,6 +47,29 @@ public:
 };
 
 template <class T>
+class RegularPriorityQueue : public AbstractQueue<T> {
+private:
+    std::priority_queue<T> queue;
+    const T empty_element;
+public:
+    explicit RegularPriorityQueue(T empty_element) : empty_element(empty_element) {}
+    void push(T elem) override {
+        queue.push(elem);
+    }
+    T pop() override {
+        if (queue.empty()) {
+            return empty_element;
+        }
+        T elem = queue.top();
+        queue.pop();
+        return elem;
+    }
+    T get_empty_element() override {
+        return empty_element;
+    }
+};
+
+template <class T>
 class BlockingQueue : public AbstractQueue<T> {
 private:
     std::priority_queue<T> queue;
@@ -114,10 +137,13 @@ public:
     }
 };
 
-void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, AtomicDistVector & dists) {
+void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, AtomicDistVector & dists,
+        AtomicDistVector & vertex_pull_counts) {
     while (true) {
         QueueElement elem = queue.pop();
+        // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
         if (elem == queue.get_empty_element()) {
+//            std::cerr << "bye" << std::endl;
             break;
         }
         Vertex v = elem.get_vertex();
@@ -126,6 +152,14 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
         if (v_dist > v_global_dist) {
             continue;
         }
+
+        while (true) {
+            int count = std::atomic_load(&vertex_pull_counts[v]);
+            if (std::atomic_compare_exchange_strong(&vertex_pull_counts[v], &count, count + 1)) {
+                break;
+            }
+        }
+
         for (Edge e : graph[v]) {
             Vertex v2 = e.get_to();
             if (v == v2) continue;
@@ -144,8 +178,8 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
     }
 }
 
-DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, std::size_t num_threads,
-                                    AbstractQueue<QueueElement> & queue) {
+std::pair<DistVector, DistVector> calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
+        std::size_t num_threads, AbstractQueue<QueueElement> & queue) {
     queue.push({start_vertex, 0});
     std::vector<std::thread> threads;
     AtomicDistVector atomic_dists(graph.size());
@@ -153,8 +187,13 @@ DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, s
         std::atomic_store(&dist, INT_MAX);
     }
     std::atomic_store(&atomic_dists[0], 0);
+    AtomicDistVector atomic_vertex_pull_counts(graph.size());
+    for (auto & count : atomic_vertex_pull_counts) {
+        std::atomic_store(&count, 0);
+    }
     for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists));
+        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
+                std::ref(atomic_vertex_pull_counts));
         #ifdef __linux__
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -170,10 +209,15 @@ DistVector calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex, s
     for (const std::atomic<DistType> & x : atomic_dists) {
         dists.push_back(x.load());
     }
-    return dists;
+    DistVector vertex_pulls_counts;
+    vertex_pulls_counts.reserve(atomic_dists.size());
+    for (const std::atomic<DistType> & vertex_pull_count : atomic_vertex_pull_counts) {
+        vertex_pulls_counts.push_back(vertex_pull_count.load());
+    }
+    return std::make_pair(dists, vertex_pulls_counts);
 }
 
-DistVector calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
+std::pair<DistVector, DistVector> calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
     DistVector dists(graph.size(), INT_MAX);
     std::vector<bool> removed_from_queue(graph.size(), false);
     std::priority_queue<QueueElement> q;
@@ -199,7 +243,7 @@ DistVector calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t star
             }
         }
     }
-    return dists;
+    return std::make_pair(dists, DistVector(graph.size(), 1));
 }
 
 AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
@@ -220,6 +264,7 @@ AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
 AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_offset = 0) {
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
+    std::cerr << "n = " << num_verticies << ", m = " <<  num_edges << std::endl;
     AdjList adj_list(num_verticies);
     for (std::size_t i = 0; i < num_edges; i++) {
         Vertex from, to;
@@ -238,28 +283,61 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
     ostream << '\n';
 }
 
-void read_run_write(const std::string & filename,
-        const std::vector<std::function<DistVector(const AdjList &)>> & dijkstra_implementations) {
+bool are_mismatched(const DistVector & correct_answer, const DistVector & to_check) {
+    auto mismatch = std::mismatch(correct_answer.begin(), correct_answer.end(), to_check.begin());
+    if (mismatch.first != correct_answer.end()) {
+        std::cerr << "Mismatch: " << *mismatch.first << " != " << *mismatch.second << std::endl;
+        return true;
+    }
+    return false;
+}
+
+void read_run_check_write(const std::string & filename,
+                          const std::vector<std::pair<std::function<std::pair<DistVector, DistVector>(const AdjList &)>,
+                                  std::string>> & dijkstra_implementations) {
     auto start = std::chrono::high_resolution_clock::now();
     std::string filename_prefix;
     #ifdef __APPLE__
         filename_prefix = "../";
     #endif
     std::ifstream input(filename_prefix + filename + ".in");
+    std::cerr << "Reading " << filename << ", ";
     AdjList graph = read_edges_into_adj_list(input, -1);
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
-    std::cout << "Reading elapsed time: " << elapsed.count() << " s\n";
+    std::cerr << "Reading elapsed time: " << elapsed.count() << " s" << std::endl;
 
+    DistVector correct_answer;
     for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
-        const auto & f = dijkstra_implementations[i];
+        const auto & f = dijkstra_implementations[i].first;
+        const std::string & impl_name = dijkstra_implementations[i].second;
         start = std::chrono::high_resolution_clock::now();
-        DistVector dists = f(graph);
+        auto distsAndCounts = f(graph);
         finish = std::chrono::high_resolution_clock::now();
         elapsed = finish - start;
-        std::cout << "Dijkstra implementation #" << i << " elapsed time: " << elapsed.count() << " s\n";
-        std::ofstream output(filename_prefix + filename + ".out" + std::to_string(i));
-        write_answer(output, dists);
+
+        DistVector dists = distsAndCounts.first;
+        DistVector vertex_pulls_counts = distsAndCounts.second;
+        unsigned overhead =
+                std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0) / graph.size();
+
+        std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
+        std::cerr << "Vertex pulls overhead: " << overhead << "x" << std::endl;
+        bool mismatched = false;
+        if (i == 0) {
+            correct_answer = dists;
+        } else {
+            mismatched = are_mismatched(correct_answer, dists);
+        }
+
+        if (mismatched) {
+            std::ofstream output(filename_prefix + filename + ".out" + std::to_string(i));
+            start = std::chrono::high_resolution_clock::now();
+            write_answer(output, dists);
+            finish = std::chrono::high_resolution_clock::now();
+            elapsed = finish - start;
+            std::cerr << "Writing elapsed time: " << elapsed.count() << " s" << std::endl;
+        }
     }
 }
 
@@ -270,26 +348,33 @@ int main(int argc, char *argv[]) {
         std::cerr << "Usage: ./dijkstra num_threads size_multiple filename" << std::endl;
         exit(1);
     }
-    std::size_t num_threads = atoi(argv[1]);
-    std::size_t size_multiple = atoi(argv[2]);
+    std::size_t num_threads = std::stoi(argv[1]);
+    std::size_t size_multiple = std::stoi(argv[2]);
     std::string filename(argv[3]);
 
     Vertex start_vertex = 0;
     QueueElement empty_element = {start_vertex, -1};
     AbstractQueue<QueueElement> * blocking_queue = new BlockingQueue<QueueElement>(empty_element);
+    AbstractQueue<QueueElement> * regular_queue = new RegularPriorityQueue<QueueElement>(empty_element);
     AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple, empty_element);
 
     auto f = [start_vertex] (const AdjList & graph)
             { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
     auto f2 = [start_vertex, num_threads, blocking_queue] (const AdjList & graph)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue); };
-    auto f3 = [start_vertex, num_threads, multi_queue] (const AdjList & graph)
+    auto f3 = [start_vertex, num_threads, regular_queue] (const AdjList & graph)
+            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *regular_queue); };
+    auto f4 = [start_vertex, num_threads, multi_queue] (const AdjList & graph)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); };
 
-    std::vector<std::function<DistVector(const AdjList &)>> dijkstra_implementations;
-    dijkstra_implementations.emplace_back(f);
-    dijkstra_implementations.emplace_back(f2);
-    dijkstra_implementations.emplace_back(f3);
+    std::vector<std::pair<std::function<std::pair<DistVector, DistVector>(const AdjList &)>, std::string>>
+        dijkstra_implementations;
+    dijkstra_implementations.emplace_back(f, "Sequential");
+    dijkstra_implementations.emplace_back(f2, "BlockingQueue");
+    if (num_threads == 1) {
+        dijkstra_implementations.emplace_back(f3, "RegularQueue");
+    }
+    dijkstra_implementations.emplace_back(f4, "MultiQueue");
 
-    read_run_write(filename, dijkstra_implementations);
+    read_run_check_write(filename, dijkstra_implementations);
 }
