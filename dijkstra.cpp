@@ -316,8 +316,8 @@ void read_run_check_write(const std::string & filename,
 
         DistVector dists = distsAndCounts.first;
         DistVector vertex_pulls_counts = distsAndCounts.second;
-        unsigned overhead =
-                std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0) / graph.size();
+        double overhead =
+                1.0 * std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0) / graph.size();
 
         std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
         std::cerr << "Vertex pulls overhead: " << overhead << "x" << std::endl;
