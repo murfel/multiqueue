@@ -148,28 +148,21 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
         }
         Vertex v = elem.get_vertex();
         DistType v_dist = elem.get_dist();
-        DistType v_global_dist = std::atomic_load(&dists[v]);
+        DistType v_global_dist = dists[v];
         if (v_dist > v_global_dist) {
             continue;
         }
-
-        while (true) {
-            int count = std::atomic_load(&vertex_pull_counts[v]);
-            if (std::atomic_compare_exchange_strong(&vertex_pull_counts[v], &count, count + 1)) {
-                break;
-            }
-        }
-
+        vertex_pull_counts[v]++;
         for (Edge e : graph[v]) {
             Vertex v2 = e.get_to();
             if (v == v2) continue;
             DistType new_v2_dist = v_dist + e.get_weight();
             while (true) {
-                DistType old_v2_dist = std::atomic_load(&dists[v2]);
+                DistType old_v2_dist = dists[v2];
                 if (old_v2_dist <= new_v2_dist) {
                     break;
                 }
-                if (std::atomic_compare_exchange_strong(&dists[v2], &old_v2_dist, new_v2_dist)) {
+                if (dists[v2].compare_exchange_strong(old_v2_dist, new_v2_dist)) {
                     queue.push({v2, new_v2_dist});
                     break;
                 }
@@ -178,19 +171,32 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
     }
 }
 
+template<class T>
+std::vector<std::atomic<T>> initialize(std::size_t n, const T & x) {
+    std::vector<std::atomic<T>> atomic_vector(n);
+    for (auto & atomic_element : atomic_vector) {
+        atomic_element = x;
+    }
+    return atomic_vector;
+}
+
+template<class T>
+std::vector<T> unwrap_from_atomic(const std::vector<std::atomic<T>> & atomic_vector) {
+    std::vector<T> regular_vector;
+    regular_vector.reserve(atomic_vector.size());
+    for (const auto & atomic_element : atomic_vector) {
+        regular_vector.push_back(atomic_element);
+    }
+    return regular_vector;
+}
+
 std::pair<DistVector, DistVector> calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
         std::size_t num_threads, AbstractQueue<QueueElement> & queue) {
     queue.push({start_vertex, 0});
+    AtomicDistVector atomic_dists = initialize(graph.size(), INT_MAX);
+    atomic_dists[0] = 0;
+    AtomicDistVector atomic_vertex_pull_counts = initialize(graph.size(), 0);
     std::vector<std::thread> threads;
-    AtomicDistVector atomic_dists(graph.size());
-    for (std::atomic<DistType> & dist: atomic_dists) {
-        std::atomic_store(&dist, INT_MAX);
-    }
-    std::atomic_store(&atomic_dists[0], 0);
-    AtomicDistVector atomic_vertex_pull_counts(graph.size());
-    for (auto & count : atomic_vertex_pull_counts) {
-        std::atomic_store(&count, 0);
-    }
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
                 std::ref(atomic_vertex_pull_counts));
@@ -204,16 +210,8 @@ std::pair<DistVector, DistVector> calc_sssp_dijkstra(const AdjList & graph, std:
     for (std::thread & thread : threads) {
         thread.join();
     }
-    DistVector dists;
-    dists.reserve(atomic_dists.size());
-    for (const std::atomic<DistType> & x : atomic_dists) {
-        dists.push_back(x.load());
-    }
-    DistVector vertex_pulls_counts;
-    vertex_pulls_counts.reserve(atomic_dists.size());
-    for (const std::atomic<DistType> & vertex_pull_count : atomic_vertex_pull_counts) {
-        vertex_pulls_counts.push_back(vertex_pull_count.load());
-    }
+    DistVector dists = unwrap_from_atomic(atomic_dists);
+    DistVector vertex_pulls_counts = unwrap_from_atomic(atomic_vertex_pull_counts);
     return std::make_pair(dists, vertex_pulls_counts);
 }
 
