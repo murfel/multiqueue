@@ -88,8 +88,8 @@ public:
                 j = gen_random_queue_index();
             } while (i == j);
 
-            auto & q1 = queues[i];
-            auto & q2 = queues[j];
+            auto & q1 = queues[std::min(i, j)];
+            auto & q2 = queues[std::max(i, j)];
 
             std::unique_lock<std::mutex> lock1(q1.mutex);
             std::unique_lock<std::mutex> lock2(q2.mutex);
