@@ -50,6 +50,7 @@ template<class T>
 class Multiqueue {
 private:
     std::vector<LockablePriorityQueueWithEmptyElement<T>> queues;
+    const std::size_t num_queues;
     std::atomic<int> num_non_empty_queues;
     T empty_element;
     std::random_device dev;
@@ -60,21 +61,25 @@ private:
     }
 public:
     Multiqueue(int num_threads, int size_multiple, T empty_element) :
-            num_non_empty_queues(0), empty_element(empty_element), rng(dev()),
-            dist(0, std::max(2, num_threads * size_multiple) - 1) {
-        std::size_t num_queues = std::max(2, num_threads * size_multiple);
+            num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
+            empty_element(empty_element), rng(dev()), dist(0, num_queues - 1) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(empty_element);
         }
     }
     void push(T value) {
-        auto & queue = queues[gen_random_queue_index()];
-        std::lock_guard<std::mutex> lock(queue.mutex);
-        if (queue.top() == empty_element) {
+        LockablePriorityQueueWithEmptyElement<T> * q_ptr;
+        do {
+            std::size_t i = gen_random_queue_index();
+            q_ptr = &queues[i];
+        } while (!q_ptr->mutex.try_lock());
+        auto & q = *q_ptr;
+        if (q.top() == empty_element) {
             num_non_empty_queues++;
         }
-        queue.push(value);
+        q.push(value);
+        q.mutex.unlock();
     }
     T pop() {
         while (true) {
@@ -82,40 +87,52 @@ public:
                 return empty_element;
             }
 
+            LockablePriorityQueueWithEmptyElement<T> * q1_ptr;
+            LockablePriorityQueueWithEmptyElement<T> * q2_ptr;
             std::size_t i, j;
-            i = gen_random_queue_index();
             do {
-                j = gen_random_queue_index();
-            } while (i == j);
+                do {
+                    i = gen_random_queue_index();
+                } while (i == num_queues - 1);
+                q1_ptr = &queues[i];
+            } while (!q1_ptr->mutex.try_lock());
+            do {
+                // lock in the increasing order to avoid the ABA problem
+                do {
+                    j = gen_random_queue_index();
+                } while (j <= i);
+                q2_ptr = &queues[j];
+            } while (!q2_ptr->mutex.try_lock());
 
-            auto & q1 = queues[std::min(i, j)];
-            auto & q2 = queues[std::max(i, j)];
-
-            std::unique_lock<std::mutex> lock1(q1.mutex);
-            std::unique_lock<std::mutex> lock2(q2.mutex);
+            auto & q1 = *q1_ptr;
+            auto & q2 = *q2_ptr;
 
             T e1 = q1.top();
             T e2 = q2.top();
 
             if (e1 == empty_element && e2 == empty_element) {
+                q1.mutex.unlock();
+                q2.mutex.unlock();
                 continue;
             }
 
+            LockablePriorityQueueWithEmptyElement<T> * q_ptr;
+            // reversed comparator because std::priority_queue is a max queue
             if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
-                lock1.unlock();
-                T e = q2.pop();
-                if (q2.top() == empty_element) {
-                    num_non_empty_queues--;
-                }
-                return e;
+                q1.mutex.unlock();
+                q_ptr = &q2;
             } else {
-                lock2.unlock();
-                T e = q1.pop();
-                if (q1.top() == empty_element) {
-                    num_non_empty_queues--;
-                }
-                return e;
+                q2.mutex.unlock();
+                q_ptr = &q1;
             }
+            auto & q = *q_ptr;
+
+            T e = q.pop();
+            if (q.top() == empty_element) {
+                num_non_empty_queues--;
+            }
+            q.mutex.unlock();
+            return e;
         }
     }
 };
