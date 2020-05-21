@@ -246,6 +246,43 @@ std::pair<DistVector, DistVector> calc_sssp_dijkstra_sequential(const AdjList & 
     return std::make_pair(dists, DistVector(graph.size(), 1));
 }
 
+AdjList gen_layer_graph(std::size_t n = 100000, bool bidirected = false, int weight = 1) {
+    int sqrt_n = std::sqrt(n);
+    int num_vertexes = sqrt_n * sqrt_n + 2;
+    int source = 0;
+    int sink = num_vertexes - 1;
+    AdjList graph(num_vertexes);
+    int first_layer = 1;
+    for (int to = first_layer; to < first_layer + sqrt_n; to++) {
+        int from = source;
+        graph[from].emplace_back(to, weight);
+        if (bidirected) {
+            graph[to].emplace_back(0, weight);
+        }
+    }
+    for (int layer = 0; layer < sqrt_n - 1; layer++) {
+        int cur_layer = 1 + layer * sqrt_n;
+        int next_layer = 1 + (layer + 1) * sqrt_n;
+        for (int from = cur_layer; from < cur_layer + sqrt_n; from++) {
+            for (int to = next_layer; to < next_layer + sqrt_n; to++) {
+                graph[from].emplace_back(to, weight);
+                if (bidirected) {
+                    graph[to].emplace_back(from, weight);
+                }
+            }
+        }
+    }
+    int last_layer = 1 + (sqrt_n - 1) * sqrt_n;
+    for (int from = last_layer; from < last_layer + sqrt_n; from++) {
+        int to = sink;
+        graph[from].emplace_back(to, weight);
+        if (bidirected) {
+            graph[to].emplace_back(from, weight);
+        }
+    }
+    return graph;
+}
+
 AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
     std::size_t num_verticies;
     istream >> num_verticies;
