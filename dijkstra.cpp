@@ -8,6 +8,7 @@
 #include <climits>
 #include <atomic>
 #include <functional>
+#include <utility>
 
 #include "multiqueue.h"
 
@@ -42,6 +43,12 @@ template <class T>
 class AbstractQueue {
 public:
     virtual void push(T elem) = 0;
+    virtual std::size_t get_num_pushes() {
+        return 0;
+    }
+    virtual std::vector<std::size_t> get_max_queue_sizes() {
+        return std::vector<std::size_t>();
+    }
     virtual T pop() = 0;
     virtual T get_empty_element() = 0;
     virtual ~AbstractQueue() = default;
@@ -107,6 +114,12 @@ public:
     void push(T elem) override {
         queue.push(elem);
     }
+    std::size_t get_num_pushes() override {
+        return queue.get_num_pushes();
+    }
+    std::vector<std::size_t> get_max_queue_sizes() override {
+        return queue.get_max_queue_sizes();
+    }
     T pop() override {
         return queue.pop();
     }
@@ -135,6 +148,33 @@ public:
     }
     bool operator<(const QueueElement & o) const {
         return dist > o.get_dist();
+    }
+};
+
+class SsspDijkstraDistsAndStatistics {
+private:
+    DistVector dists;
+    DistVector vertex_pulls_counts;
+    std::size_t num_pushes;
+    std::vector<std::size_t> max_queue_sizes;
+public:
+    SsspDijkstraDistsAndStatistics(
+            DistVector dists, DistVector vertex_pulls_counts, size_t num_pushes,
+            std::vector<std::size_t> max_queue_sizes) :
+            dists(std::move(dists)), vertex_pulls_counts(std::move(vertex_pulls_counts)), num_pushes(num_pushes),
+            max_queue_sizes(std::move(max_queue_sizes)) {}
+
+    const DistVector &get_dists() const {
+        return dists;
+    }
+    const DistVector &get_vertex_pulls_counts() const {
+        return vertex_pulls_counts;
+    }
+    std::size_t get_num_pushes() const {
+        return num_pushes;
+    }
+    const std::vector<std::size_t> &get_max_queue_sizes() const {
+        return max_queue_sizes;
     }
 };
 
@@ -191,12 +231,13 @@ std::vector<T> unwrap_from_atomic(const std::vector<std::atomic<T>> & atomic_vec
     return regular_vector;
 }
 
-std::pair<DistVector, DistVector> calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
         std::size_t num_threads, AbstractQueue<QueueElement> & queue) {
+    std::size_t num_vertexes = graph.size();
     queue.push({start_vertex, 0});
-    AtomicDistVector atomic_dists = initialize(graph.size(), INT_MAX);
+    AtomicDistVector atomic_dists = initialize(num_vertexes, INT_MAX);
     atomic_dists[0] = 0;
-    AtomicDistVector atomic_vertex_pull_counts = initialize(graph.size(), 0);
+    AtomicDistVector atomic_vertex_pull_counts = initialize(num_vertexes, 0);
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
@@ -213,17 +254,20 @@ std::pair<DistVector, DistVector> calc_sssp_dijkstra(const AdjList & graph, std:
     }
     DistVector dists = unwrap_from_atomic(atomic_dists);
     DistVector vertex_pulls_counts = unwrap_from_atomic(atomic_vertex_pull_counts);
+    std::size_t num_pushes = queue.get_num_pushes();
+    auto max_queue_sizes = queue.get_max_queue_sizes();
     delete &queue;
-    return std::make_pair(dists, vertex_pulls_counts);
+    return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
 }
 
-std::pair<DistVector, DistVector> calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
-    DistVector dists(graph.size(), INT_MAX);
-    std::vector<bool> removed_from_queue(graph.size(), false);
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
+    std::size_t num_vertexes = graph.size();
+    DistVector dists(num_vertexes, INT_MAX);
+    std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<QueueElement> q;
     dists[start_vertex] = 0;
     q.push({start_vertex, 0});
-    for (std::size_t i = 0; i < graph.size(); i++) {
+    for (std::size_t i = 0; i < num_vertexes; i++) {
         while (!q.empty() && removed_from_queue[q.top().get_vertex()]) {
             q.pop();
         }
@@ -243,7 +287,8 @@ std::pair<DistVector, DistVector> calc_sssp_dijkstra_sequential(const AdjList & 
             }
         }
     }
-    return std::make_pair(dists, DistVector(graph.size(), 1));
+    return {dists, DistVector(num_vertexes, 1), num_vertexes,
+            std::vector<std::size_t>(num_vertexes)};
 }
 
 AdjList gen_layer_graph(std::size_t n = 100000, bool bidirected = false, int weight = 1) {
@@ -330,7 +375,7 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
 }
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
-                          const std::vector<std::pair<std::function<std::pair<DistVector, DistVector>(const AdjList &)>,
+                          const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>,
                                   std::string>> & dijkstra_implementations) {
     AdjList graph;
     if (gen_graph_size > 0) {
@@ -347,31 +392,39 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
     }
 
     DistVector correct_answer;
+    std::size_t num_vertexes = graph.size();
     for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
         const auto & f = dijkstra_implementations[i].first;
         const std::string & impl_name = dijkstra_implementations[i].second;
         auto start = std::chrono::high_resolution_clock::now();
-        auto distsAndCounts = f(graph);
+        auto distsAndStatistics = f(graph);
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
 
-        DistVector dists = distsAndCounts.first;
-        DistVector vertex_pulls_counts = distsAndCounts.second;
-        unsigned vertex_pulls_sum = std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0);
-        double overhead = 1.0 * vertex_pulls_sum / graph.size();
+        const DistVector & dists = distsAndStatistics.get_dists();
+        const DistVector & vertex_pulls_counts = distsAndStatistics.get_vertex_pulls_counts();
+        std::size_t num_pushes = distsAndStatistics.get_num_pushes();
+        const auto & max_queue_sizes = distsAndStatistics.get_max_queue_sizes();
+        std::size_t vertex_pulls_sum = std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0);
+        double overhead = 1.0 * vertex_pulls_sum / num_vertexes;
+        std::size_t useless_pushes = num_pushes - vertex_pulls_sum;
 
-        std::vector<int> vertex_to_num_edges(graph.size());
-        for (std::size_t j = 0; j < graph.size(); j++) {
-            vertex_to_num_edges[j] = graph[j].size();
+        std::vector<int> vertex_to_num_edges(num_vertexes);
+        for (std::size_t v = 0; v < num_vertexes; v++) {
+            vertex_to_num_edges[v] = graph[v].size();
         }
         unsigned sequential_weighted_vertex_pulls = std::accumulate(vertex_to_num_edges.begin(), vertex_to_num_edges.end(), 0);
         unsigned weighted_vertex_pulls = std::inner_product(vertex_pulls_counts.begin(), vertex_pulls_counts.end(),
                                                             vertex_to_num_edges.begin(), 0);
         double weighted_overhead = 1.0 * weighted_vertex_pulls / sequential_weighted_vertex_pulls;
+        std::size_t max_queue_size = *std::max_element(max_queue_sizes.begin(), max_queue_sizes.end());
 
         std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
-        std::cerr << "Vertex pulls: " << vertex_pulls_sum << " (" << overhead << "x)" << std::endl;
-        std::cerr << "Weighted vertex pulls: " << weighted_vertex_pulls << " (" << weighted_overhead << "x)" << std::endl;
+        std::cerr << "Pulls: " << vertex_pulls_sum << " (" << overhead << "x)" << std::endl;
+        std::cerr << "Pushes: " << num_pushes << std::endl;
+        std::cerr << "Useless pushes:  " << useless_pushes << std::endl;
+        std::cerr << "Edges accessed: " << weighted_vertex_pulls << " (" << weighted_overhead << "x)" << std::endl;
+        std::cerr << "Max queue size: " << max_queue_size << std::endl;
         std::cerr << std::endl;
 
         bool mismatched = false;
@@ -418,7 +471,7 @@ int main(int argc, char *argv[]) {
         params.emplace_back(num_threads, size_multiple);
     }
 
-    std::vector<std::pair<std::function<std::pair<DistVector, DistVector>(const AdjList &)>, std::string>>
+    std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>>
             dijkstra_implementations;
     {
         auto f = [start_vertex](const AdjList &graph) { return calc_sssp_dijkstra_sequential(graph, start_vertex); };

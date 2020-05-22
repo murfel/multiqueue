@@ -29,7 +29,7 @@ public:
         queue.push(value);
     }
 
-    const T & top() {
+    const T & top() const {
         if (queue.empty()) {
             return empty_element;
         }
@@ -44,6 +44,10 @@ public:
         queue.pop();
         return elem;
     }
+
+    std::size_t size() const {
+        return queue.size();
+    }
 };
 
 template<class T>
@@ -51,7 +55,7 @@ class Multiqueue {
 private:
     std::vector<LockablePriorityQueueWithEmptyElement<T>> queues;
     const std::size_t num_queues;
-    std::atomic<int> num_non_empty_queues;
+    std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
     std::random_device dev;
     std::mt19937 rng;
@@ -59,10 +63,13 @@ private:
     std::size_t gen_random_queue_index() {
         return dist(rng);
     }
+    std::atomic<std::size_t> num_pushes;
+    std::vector<std::size_t> max_queue_sizes;
 public:
     Multiqueue(int num_threads, int size_multiple, T empty_element) :
             num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
-            empty_element(empty_element), rng(dev()), dist(0, num_queues - 1) {
+            empty_element(empty_element), rng(dev()), dist(0, num_queues - 1), num_pushes(0),
+            max_queue_sizes(num_queues, 0) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(empty_element);
@@ -70,8 +77,9 @@ public:
     }
     void push(T value) {
         LockablePriorityQueueWithEmptyElement<T> * q_ptr;
+        std::size_t i;
         do {
-            std::size_t i = gen_random_queue_index();
+            i = gen_random_queue_index();
             q_ptr = &queues[i];
         } while (!q_ptr->mutex.try_lock());
         auto & q = *q_ptr;
@@ -79,7 +87,15 @@ public:
             num_non_empty_queues++;
         }
         q.push(value);
+        max_queue_sizes[i] = std::max(max_queue_sizes[i], q.size());
         q.mutex.unlock();
+        num_pushes++;
+    }
+    std::size_t get_num_pushes() const {
+        return num_pushes;
+    }
+    const std::vector<std::size_t> & get_max_queue_sizes() const {
+        return max_queue_sizes;
     }
     T pop() {
         while (true) {
