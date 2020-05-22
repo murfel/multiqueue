@@ -329,26 +329,31 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
     return false;
 }
 
-void read_run_check_write(const std::string & filename,
+void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
                           const std::vector<std::pair<std::function<std::pair<DistVector, DistVector>(const AdjList &)>,
                                   std::string>> & dijkstra_implementations) {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::ifstream input(filename + ".in");
-    std::cerr << "Reading " << filename << ", ";
-    AdjList graph = read_edges_into_adj_list(input, -1);
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    std::cerr << "Reading elapsed time: " << elapsed.count() << " s" << std::endl;
-    std::cerr << std::endl;
+    AdjList graph;
+    if (gen_graph_size > 0) {
+        graph = gen_layer_graph(gen_graph_size);
+    } else {
+        auto start = std::chrono::high_resolution_clock::now();
+        std::ifstream input(filename + ".in");
+        std::cerr << "Reading " << filename << ", ";
+        graph = read_edges_into_adj_list(input, -1);
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        std::cerr << "Reading elapsed time: " << elapsed.count() << " s" << std::endl;
+        std::cerr << std::endl;
+    }
 
     DistVector correct_answer;
     for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
         const auto & f = dijkstra_implementations[i].first;
         const std::string & impl_name = dijkstra_implementations[i].second;
-        start = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
         auto distsAndCounts = f(graph);
-        finish = std::chrono::high_resolution_clock::now();
-        elapsed = finish - start;
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
 
         DistVector dists = distsAndCounts.first;
         DistVector vertex_pulls_counts = distsAndCounts.second;
@@ -390,9 +395,9 @@ void read_run_check_write(const std::string & filename,
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
-    if (argc != 5) {
+    if (argc != 6) {
         std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename run_blocking_queue[0,1] "
-                     "run_regular_queue[0,1]"
+                     "run_regular_queue[0,1] gen_graph_size"
         << std::endl;
         exit(1);
     }
@@ -400,6 +405,7 @@ int main(int argc, char *argv[]) {
     std::string params_filename(argv[2]);
     bool run_blocking_queue = std::stoi(argv[3]);
     bool run_regular_queue = std::stoi(argv[4]);
+    std::size_t gen_graph_size = std::stoi(argv[5]);
 
     Vertex start_vertex = 0;
     QueueElement empty_element = {start_vertex, -1};
@@ -445,5 +451,5 @@ int main(int argc, char *argv[]) {
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); }, impl_name);
     }
 
-    read_run_check_write(input_filename_no_ext, dijkstra_implementations);
+    read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations);
 }
