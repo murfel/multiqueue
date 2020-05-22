@@ -11,17 +11,26 @@
 #include <cstdint>
 #include <cstdlib>
 
+template <class T>
+class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
+{
+public:
+    explicit ReservablePriorityQueue(std::size_t reserve_size) {
+        this->c.reserve(reserve_size);
+    }
+};
 
 template <class T>
 class LockablePriorityQueueWithEmptyElement {
 private:
-    std::priority_queue<T> queue;
+    ReservablePriorityQueue<T> queue;
     const T empty_element;
 public:
-    explicit LockablePriorityQueueWithEmptyElement(const T empty_element) : empty_element(empty_element) {}
+    explicit LockablePriorityQueueWithEmptyElement(std::size_t reserve_size, const T empty_element) :
+            queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {}
 
     LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) :
-        empty_element(o.empty_element) {}
+            queue(ReservablePriorityQueue<T>(512)), empty_element(empty_element) {}
 
     std::mutex mutex;
 
@@ -66,13 +75,13 @@ private:
     std::atomic<std::size_t> num_pushes;
     std::vector<std::size_t> max_queue_sizes;
 public:
-    Multiqueue(int num_threads, int size_multiple, T empty_element) :
+    Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size = 512) :
             num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
             empty_element(empty_element), rng(dev()), dist(0, num_queues - 1), num_pushes(0),
             max_queue_sizes(num_queues, 0) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            queues.emplace_back(empty_element);
+            queues.emplace_back(one_queue_reserve_size, empty_element);
         }
     }
     void push(T value) {
