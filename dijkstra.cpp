@@ -109,8 +109,10 @@ private:
     Multiqueue<T> queue;
     T empty_element;
 public:
-    MultiQueue(const int num_threads, const int size_multiple, T empty_element, std::size_t one_queue_reserve_size) :
-            queue(num_threads, size_multiple, empty_element, one_queue_reserve_size), empty_element(empty_element) {}
+    MultiQueue(const int num_threads, const int size_multiple, T empty_element, std::size_t one_queue_reserve_size,
+            bool use_try_lock) :
+            queue(num_threads, size_multiple, empty_element, one_queue_reserve_size, use_try_lock),
+            empty_element(empty_element) {}
     void push(T elem) override {
         queue.push(elem);
     }
@@ -448,8 +450,8 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
-    if (argc != 7) {
-        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size "
+    if (argc != 8) {
+        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size use_try_lock[0,1]"
                      "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size"
         << std::endl;
         exit(1);
@@ -457,9 +459,10 @@ int main(int argc, char *argv[]) {
     std::string input_filename_no_ext(argv[1]);
     std::string params_filename(argv[2]);
     std::size_t one_queue_reserve_size = std::stoul(argv[3]);
-    bool run_blocking_queue = std::stoi(argv[4]);
-    bool run_regular_queue = std::stoi(argv[5]);
-    std::size_t gen_graph_size = std::stoi(argv[6]);
+    bool use_try_lock = std::stoi(argv[4]);
+    bool run_blocking_queue = std::stoi(argv[5]);
+    bool run_regular_queue = std::stoi(argv[6]);
+    std::size_t gen_graph_size = std::stoi(argv[7]);
 
     Vertex start_vertex = 0;
     QueueElement empty_element = {start_vertex, -1};
@@ -500,7 +503,7 @@ int main(int argc, char *argv[]) {
         int num_threads = param.first;
         int size_multiple = param.second;
         AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple,
-                empty_element, one_queue_reserve_size);
+                empty_element, one_queue_reserve_size, use_try_lock);
         std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
         dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue] (const AdjList & graph)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); }, impl_name);
