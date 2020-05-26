@@ -9,6 +9,8 @@
 #include <atomic>
 #include <functional>
 #include <utility>
+#include <numeric>
+#include <cmath>
 
 #include "multiqueue.h"
 

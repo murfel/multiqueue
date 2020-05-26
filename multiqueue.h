@@ -6,10 +6,25 @@
 #include <thread>
 #include <mutex>
 #include <iostream>
-#include <random>
 #include <cstring>
 #include <cstdint>
 #include <cstdlib>
+
+static unsigned long x=123456789, y=362436069, z=521288629;
+
+unsigned long xorshf96() {          //period 2^96-1
+    unsigned long t;
+    x ^= x << 16;
+    x ^= x >> 5;
+    x ^= x << 1;
+
+    t = x;
+    x = y;
+    y = z;
+    z = t ^ x ^ y;
+
+    return z;
+}
 
 template <class T>
 class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
@@ -66,11 +81,8 @@ private:
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
-    std::random_device dev;
-    std::mt19937 rng;
-    std::uniform_int_distribution<std::mt19937::result_type> dist; // []
     std::size_t gen_random_queue_index() {
-        return dist(rng);
+        return xorshf96() % num_queues;
     }
     std::atomic<std::size_t> num_pushes;
     std::vector<std::size_t> max_queue_sizes;
@@ -207,8 +219,7 @@ public:
     Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size = 512,
             bool use_try_lock = false) :
             num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
-            empty_element(empty_element), rng(dev()), dist(0, num_queues - 1), num_pushes(0),
-            max_queue_sizes(num_queues, 0), use_try_lock() {
+            empty_element(empty_element), num_pushes(0), max_queue_sizes(num_queues, 0), use_try_lock() {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(one_queue_reserve_size, empty_element);
