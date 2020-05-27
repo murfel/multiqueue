@@ -449,6 +449,17 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
     }
 }
 
+std::vector<std::pair<int, int>> read_params(const std::string & params_filename) {
+    std::vector<std::pair<int, int>> params;
+    std::ifstream params_input(params_filename);
+    int num_threads;
+    int size_multiple;
+    while (params_input >> num_threads >> size_multiple) {
+        params.emplace_back(num_threads, size_multiple);
+    }
+    return params;
+}
+
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
@@ -468,13 +479,7 @@ int main(int argc, char *argv[]) {
 
     Vertex start_vertex = 0;
     QueueElement empty_element = {start_vertex, -1};
-    std::vector<std::pair<int, int>> params;
-    std::ifstream params_input(params_filename);
-    int num_threads;
-    int size_multiple;
-    while (params_input >> num_threads >> size_multiple) {
-        params.emplace_back(num_threads, size_multiple);
-    }
+    std::vector<std::pair<int, int>> params = read_params(params_filename);
 
     std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>>
             dijkstra_implementations;
