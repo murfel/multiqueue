@@ -10,9 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-static unsigned long x=123456789, y=362436069, z=521288629;
-
-unsigned long xorshf96() {          //period 2^96-1
+unsigned long xorshf96(unsigned long & x, unsigned long & y, unsigned long & z) { //period 2^96-1
     unsigned long t;
     x ^= x << 16;
     x ^= x >> 5;
@@ -82,7 +80,8 @@ private:
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
     std::size_t gen_random_queue_index() {
-        return xorshf96() % num_queues;
+        thread_local unsigned long x=123456789, y=362436069, z=521288629;
+        return xorshf96(x, y, z) % num_queues;
     }
     std::atomic<std::size_t> num_pushes;
     std::vector<std::size_t> max_queue_sizes;
