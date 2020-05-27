@@ -24,6 +24,13 @@ unsigned long xorshf96(unsigned long & x, unsigned long & y, unsigned long & z) 
     return z;
 }
 
+uint32_t xorshift32(uint32_t & x) {
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return x;
+};
+
 template <class T>
 class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
 {
@@ -79,10 +86,7 @@ private:
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
-    std::size_t gen_random_queue_index() {
-        thread_local unsigned long x=123456789, y=362436069, z=521288629;
-        return xorshf96(x, y, z) % num_queues;
-    }
+    std::atomic<std::size_t> num_threads{0};
     std::atomic<std::size_t> num_pushes;
     std::vector<std::size_t> max_queue_sizes;
     bool use_try_lock;
@@ -223,6 +227,10 @@ public:
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(one_queue_reserve_size, empty_element);
         }
+    }
+    std::size_t gen_random_queue_index() {
+        thread_local uint32_t x = 113 + num_threads++;
+        return xorshift32(x) % num_queues;
     }
     void push(T value) {
         if (use_try_lock) {
