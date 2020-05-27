@@ -46,6 +46,17 @@ uint32_t xorshift128(uint32_t & a, uint32_t & b, uint32_t & c, uint32_t & d)
     return a = t ^ s ^ (s >> 19);
 }
 
+uint64_t random_fnv1a(uint64_t & seed) {
+    const static uint64_t offset = 14695981039346656037ULL;
+    const static uint64_t prime = 1099511628211;
+
+    uint64_t hash = offset;
+    hash ^= seed;
+    hash *= prime;
+    seed = hash;
+    return hash;
+}
+
 template <class T>
 class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
 {
@@ -244,11 +255,8 @@ public:
         }
     }
     std::size_t gen_random_queue_index() {
-        thread_local uint32_t a = 2758756369U + num_threads++;
-        thread_local uint32_t b = 3537999919U + num_threads++;
-        thread_local uint32_t c = 1067571803U + num_threads++;
-        thread_local uint32_t d = 3800006279U + num_threads++;
-        return xorshift128(a, b, c, d) % num_queues;
+        thread_local uint64_t seed = 2758756369U + num_threads++;
+        return random_fnv1a(seed) % num_queues;
     }
     void push(T value) {
         if (use_try_lock) {
