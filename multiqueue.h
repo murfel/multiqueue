@@ -31,6 +31,21 @@ uint32_t xorshift32(uint32_t & x) {
     return x;
 };
 
+uint32_t xorshift128(uint32_t & a, uint32_t & b, uint32_t & c, uint32_t & d)
+{
+    /* Algorithm "xor128" from p. 5 of Marsaglia, "Xorshift RNGs" */
+    uint32_t t = d;
+
+    uint32_t const s = a;
+    d = c;
+    c = b;
+    b = s;
+
+    t ^= t << 11;
+    t ^= t >> 8;
+    return a = t ^ s ^ (s >> 19);
+}
+
 template <class T>
 class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
 {
@@ -229,8 +244,11 @@ public:
         }
     }
     std::size_t gen_random_queue_index() {
-        thread_local uint32_t x = 113 + num_threads++;
-        return xorshift32(x) % num_queues;
+        thread_local uint32_t a = 2758756369U + num_threads++;
+        thread_local uint32_t b = 3537999919U + num_threads++;
+        thread_local uint32_t c = 1067571803U + num_threads++;
+        thread_local uint32_t d = 3800006279U + num_threads++;
+        return xorshift128(a, b, c, d) % num_queues;
     }
     void push(T value) {
         if (use_try_lock) {
