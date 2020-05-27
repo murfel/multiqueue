@@ -470,10 +470,9 @@ int main(int argc, char *argv[]) {
     QueueElement empty_element = {start_vertex, -1};
     std::vector<std::pair<int, int>> params;
     std::ifstream params_input(params_filename);
-    while (params_input.good()) {
-        int num_threads;
-        int size_multiple;
-        params_input >> num_threads >> size_multiple;
+    int num_threads;
+    int size_multiple;
+    while (params_input >> num_threads >> size_multiple) {
         params.emplace_back(num_threads, size_multiple);
     }
 
