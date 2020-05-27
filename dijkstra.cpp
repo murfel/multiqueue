@@ -380,7 +380,7 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
                           const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>,
-                                  std::string>> & dijkstra_implementations) {
+                                  std::string>> & dijkstra_implementations, bool run_only) {
     AdjList graph;
     if (gen_graph_size > 0) {
         graph = gen_layer_graph(gen_graph_size);
@@ -405,6 +405,9 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
 
+        std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
+        if (run_only) continue;
+
         const DistVector & dists = distsAndStatistics.get_dists();
         const DistVector & vertex_pulls_counts = distsAndStatistics.get_vertex_pulls_counts();
         std::size_t num_pushes = distsAndStatistics.get_num_pushes();
@@ -423,7 +426,6 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         double weighted_overhead = 1.0 * weighted_vertex_pulls / sequential_weighted_vertex_pulls;
         std::size_t max_queue_size = *std::max_element(max_queue_sizes.begin(), max_queue_sizes.end());
 
-        std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
         std::cerr << "Pulls: " << vertex_pulls_sum << " (" << overhead << "x)" << std::endl;
         std::cerr << "Pushes: " << num_pushes << std::endl;
         std::cerr << "Useless pushes:  " << useless_pushes << std::endl;
@@ -463,9 +465,9 @@ std::vector<std::pair<int, int>> read_params(const std::string & params_filename
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
-    if (argc != 8) {
-        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size use_try_lock[0,1]"
-                     "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size"
+    if (argc != 9) {
+        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size use_try_lock[0,1] "
+                     "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size run_only[0, 1]"
         << std::endl;
         exit(1);
     }
@@ -476,6 +478,7 @@ int main(int argc, char *argv[]) {
     bool run_blocking_queue = std::stoi(argv[5]);
     bool run_regular_queue = std::stoi(argv[6]);
     std::size_t gen_graph_size = std::stoi(argv[7]);
+    bool run_only = std::stoi(argv[8]);
 
     Vertex start_vertex = 0;
     QueueElement empty_element = {start_vertex, -1};
@@ -483,7 +486,7 @@ int main(int argc, char *argv[]) {
 
     std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>>
             dijkstra_implementations;
-    {
+    if (!run_only) {
         auto f = [start_vertex](const AdjList &graph) { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
         dijkstra_implementations.emplace_back(f, "Sequential");
     }
@@ -515,5 +518,5 @@ int main(int argc, char *argv[]) {
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); }, impl_name);
     }
 
-    read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations);
+    read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only);
 }
