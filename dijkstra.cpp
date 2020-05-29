@@ -52,7 +52,6 @@ public:
         return std::vector<std::size_t>();
     }
     virtual T pop() = 0;
-    virtual T get_empty_element() = 0;
     virtual ~AbstractQueue() = default;
 };
 
@@ -73,9 +72,6 @@ public:
         T elem = queue.top();
         queue.pop();
         return elem;
-    }
-    T get_empty_element() override {
-        return empty_element;
     }
 };
 
@@ -99,9 +95,6 @@ public:
         T elem = queue.top();
         queue.pop();
         return elem;
-    }
-    T get_empty_element() override {
-        return empty_element;
     }
 };
 
@@ -127,9 +120,6 @@ public:
     T pop() override {
         return queue.pop();
     }
-    T get_empty_element() override {
-        return empty_element;
-    }
 };
 
 class QueueElement {
@@ -154,6 +144,9 @@ public:
         return dist > o.get_dist();
     }
 };
+
+static const DistType EMPTY_ELEMENT_DIST = -1;
+static const QueueElement EMPTY_ELEMENT = {0, EMPTY_ELEMENT_DIST};
 
 class SsspDijkstraDistsAndStatistics {
 private:
@@ -187,7 +180,7 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
     while (true) {
         QueueElement elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
-        if (elem == queue.get_empty_element()) {
+        if (elem.get_dist() == EMPTY_ELEMENT_DIST) {
 //            std::cerr << "bye" << std::endl;
             break;
         }
@@ -481,7 +474,6 @@ int main(int argc, char *argv[]) {
     bool run_only = std::stoi(argv[8]);
 
     Vertex start_vertex = 0;
-    QueueElement empty_element = {start_vertex, -1};
     std::vector<std::pair<int, int>> params = read_params(params_filename);
 
     std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>>
@@ -493,7 +485,7 @@ int main(int argc, char *argv[]) {
     if (run_blocking_queue) {
         for (const auto & param: params) {
             int num_threads = param.first;
-            AbstractQueue<QueueElement> *blocking_queue = new BlockingQueue<QueueElement>(empty_element);
+            AbstractQueue<QueueElement> *blocking_queue = new BlockingQueue<QueueElement>(EMPTY_ELEMENT);
             auto f = [start_vertex, num_threads, blocking_queue](const AdjList &graph) {
                 return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue);
             };
@@ -502,7 +494,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (run_regular_queue) {
-        AbstractQueue<QueueElement> *regular_queue = new RegularPriorityQueue<QueueElement>(empty_element);
+        AbstractQueue<QueueElement> *regular_queue = new RegularPriorityQueue<QueueElement>(EMPTY_ELEMENT);
         auto f = [start_vertex, regular_queue](const AdjList &graph) {
             return calc_sssp_dijkstra(graph, start_vertex, 1, *regular_queue);
         };
@@ -512,7 +504,7 @@ int main(int argc, char *argv[]) {
         int num_threads = param.first;
         int size_multiple = param.second;
         AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple,
-                empty_element, one_queue_reserve_size, use_try_lock);
+                                                                                 EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock);
         std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
         dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue] (const AdjList & graph)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); }, impl_name);
