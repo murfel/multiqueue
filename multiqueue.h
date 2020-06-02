@@ -132,6 +132,7 @@ private:
     std::atomic<std::size_t> num_pushes;
     std::vector<std::size_t> max_queue_sizes;
     bool use_try_lock;
+    bool collect_statistics;
 
     void push_lock(T value) {
         std::size_t i = gen_random_queue_index();
@@ -141,8 +142,10 @@ private:
             num_non_empty_queues++;
         }
         queue.push(value);
-        max_queue_sizes[i] = std::max(max_queue_sizes[i], queue.size());
-        num_pushes++;
+        if (collect_statistics) {
+            max_queue_sizes[i] = std::max(max_queue_sizes[i], queue.size());
+            num_pushes++;
+        }
         queue.unlock();
     }
 
@@ -158,9 +161,11 @@ private:
             num_non_empty_queues++;
         }
         q.push(value);
-        max_queue_sizes[i] = std::max(max_queue_sizes[i], q.size());
+        if (collect_statistics) {
+            max_queue_sizes[i] = std::max(max_queue_sizes[i], q.size());
+            num_pushes++;
+        }
         q.unlock();
-        num_pushes++;
     }
     T pop_lock() {
         while (true) {
@@ -267,9 +272,10 @@ private:
     }
 public:
     Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size = 512,
-            bool use_try_lock = false) :
+            bool use_try_lock = false, bool collect_statistics = false) :
             num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
-            empty_element(empty_element), num_pushes(0), max_queue_sizes(num_queues, 0), use_try_lock() {
+            empty_element(empty_element), num_pushes(0), max_queue_sizes(num_queues, 0),
+            use_try_lock(use_try_lock), collect_statistics(collect_statistics) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(one_queue_reserve_size, empty_element);
