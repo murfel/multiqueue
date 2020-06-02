@@ -176,7 +176,7 @@ public:
 };
 
 void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, AtomicDistVector & dists,
-        AtomicDistVector & vertex_pull_counts) {
+        AtomicDistVector & vertex_pull_counts, bool collect_statistics) {
     while (true) {
         QueueElement elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
@@ -190,7 +190,9 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
         if (v_dist > v_global_dist) {
             continue;
         }
-        vertex_pull_counts[v]++;
+        if (collect_statistics) {
+            vertex_pull_counts[v]++;
+        }
         for (Edge e : graph[v]) {
             Vertex v2 = e.get_to();
             if (v == v2) continue;
@@ -229,7 +231,7 @@ std::vector<T> unwrap_from_atomic(const std::vector<std::atomic<T>> & atomic_vec
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
-        std::size_t num_threads, AbstractQueue<QueueElement> & queue) {
+        std::size_t num_threads, AbstractQueue<QueueElement> & queue, bool collect_statistics) {
     std::size_t num_vertexes = graph.size();
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize(num_vertexes, INT_MAX);
@@ -238,7 +240,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_vertex_pull_counts));
+                std::ref(atomic_vertex_pull_counts), collect_statistics);
         #ifdef __linux__
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -373,7 +375,7 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
                           const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>,
-                                  std::string>> & dijkstra_implementations, bool run_only) {
+                                  std::string>> & dijkstra_implementations, bool run_only, bool collect_statistics) {
     AdjList graph;
     if (gen_graph_size > 0) {
         graph = gen_layer_graph(gen_graph_size);
@@ -401,30 +403,33 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
         if (run_only) continue;
 
-        const DistVector & dists = distsAndStatistics.get_dists();
-        const DistVector & vertex_pulls_counts = distsAndStatistics.get_vertex_pulls_counts();
-        std::size_t num_pushes = distsAndStatistics.get_num_pushes();
-        const auto & max_queue_sizes = distsAndStatistics.get_max_queue_sizes();
-        std::size_t vertex_pulls_sum = std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0);
-        double overhead = 1.0 * vertex_pulls_sum / num_vertexes;
-        std::size_t useless_pushes = num_pushes - vertex_pulls_sum;
+            const DistVector &dists = distsAndStatistics.get_dists();
+        if (collect_statistics) {
+            const DistVector &vertex_pulls_counts = distsAndStatistics.get_vertex_pulls_counts();
+            std::size_t num_pushes = distsAndStatistics.get_num_pushes();
+            const auto &max_queue_sizes = distsAndStatistics.get_max_queue_sizes();
+            std::size_t vertex_pulls_sum = std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0);
+            double overhead = 1.0 * vertex_pulls_sum / num_vertexes;
+            std::size_t useless_pushes = num_pushes - vertex_pulls_sum;
 
-        std::vector<int> vertex_to_num_edges(num_vertexes);
-        for (std::size_t v = 0; v < num_vertexes; v++) {
-            vertex_to_num_edges[v] = graph[v].size();
+            std::vector<int> vertex_to_num_edges(num_vertexes);
+            for (std::size_t v = 0; v < num_vertexes; v++) {
+                vertex_to_num_edges[v] = graph[v].size();
+            }
+            unsigned sequential_weighted_vertex_pulls = std::accumulate(vertex_to_num_edges.begin(),
+                                                                        vertex_to_num_edges.end(), 0);
+            unsigned weighted_vertex_pulls = std::inner_product(vertex_pulls_counts.begin(), vertex_pulls_counts.end(),
+                                                                vertex_to_num_edges.begin(), 0);
+            double weighted_overhead = 1.0 * weighted_vertex_pulls / sequential_weighted_vertex_pulls;
+            std::size_t max_queue_size = *std::max_element(max_queue_sizes.begin(), max_queue_sizes.end());
+
+            std::cerr << "Pulls: " << vertex_pulls_sum << " (" << overhead << "x)" << std::endl;
+            std::cerr << "Pushes: " << num_pushes << std::endl;
+            std::cerr << "Useless pushes:  " << useless_pushes << std::endl;
+            std::cerr << "Edges accessed: " << weighted_vertex_pulls << " (" << weighted_overhead << "x)" << std::endl;
+            std::cerr << "Max queue size: " << max_queue_size << std::endl;
+            std::cerr << std::endl;
         }
-        unsigned sequential_weighted_vertex_pulls = std::accumulate(vertex_to_num_edges.begin(), vertex_to_num_edges.end(), 0);
-        unsigned weighted_vertex_pulls = std::inner_product(vertex_pulls_counts.begin(), vertex_pulls_counts.end(),
-                                                            vertex_to_num_edges.begin(), 0);
-        double weighted_overhead = 1.0 * weighted_vertex_pulls / sequential_weighted_vertex_pulls;
-        std::size_t max_queue_size = *std::max_element(max_queue_sizes.begin(), max_queue_sizes.end());
-
-        std::cerr << "Pulls: " << vertex_pulls_sum << " (" << overhead << "x)" << std::endl;
-        std::cerr << "Pushes: " << num_pushes << std::endl;
-        std::cerr << "Useless pushes:  " << useless_pushes << std::endl;
-        std::cerr << "Edges accessed: " << weighted_vertex_pulls << " (" << weighted_overhead << "x)" << std::endl;
-        std::cerr << "Max queue size: " << max_queue_size << std::endl;
-        std::cerr << std::endl;
 
         bool mismatched = false;
         if (i == 0) {
@@ -458,9 +463,10 @@ std::vector<std::pair<int, int>> read_params(const std::string & params_filename
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
-    if (argc != 9) {
+    if (argc != 10) {
         std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size use_try_lock[0,1] "
-                     "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size run_only[0, 1]"
+                     "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size run_only[0,1] "
+                     "collect_statistics[0,1]"
         << std::endl;
         exit(1);
     }
@@ -472,6 +478,7 @@ int main(int argc, char *argv[]) {
     bool run_regular_queue = std::stoi(argv[6]);
     std::size_t gen_graph_size = std::stoi(argv[7]);
     bool run_only = std::stoi(argv[8]);
+    bool collect_statistics = std::stoi(argv[9]);
 
     Vertex start_vertex = 0;
     std::vector<std::pair<int, int>> params = read_params(params_filename);
@@ -486,8 +493,8 @@ int main(int argc, char *argv[]) {
         for (const auto & param: params) {
             int num_threads = param.first;
             AbstractQueue<QueueElement> *blocking_queue = new BlockingQueue<QueueElement>(EMPTY_ELEMENT);
-            auto f = [start_vertex, num_threads, blocking_queue](const AdjList &graph) {
-                return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue);
+            auto f = [start_vertex, num_threads, blocking_queue, collect_statistics](const AdjList &graph) {
+                return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue, collect_statistics);
             };
             std::string impl_name = "BlockingQueue " + std::to_string(num_threads);
             dijkstra_implementations.emplace_back(f, impl_name);
@@ -495,8 +502,8 @@ int main(int argc, char *argv[]) {
     }
     if (run_regular_queue) {
         AbstractQueue<QueueElement> *regular_queue = new RegularPriorityQueue<QueueElement>(EMPTY_ELEMENT);
-        auto f = [start_vertex, regular_queue](const AdjList &graph) {
-            return calc_sssp_dijkstra(graph, start_vertex, 1, *regular_queue);
+        auto f = [start_vertex, regular_queue, collect_statistics](const AdjList &graph) {
+            return calc_sssp_dijkstra(graph, start_vertex, 1, *regular_queue, collect_statistics);
         };
         dijkstra_implementations.emplace_back(f, "RegularQueue");
     }
@@ -506,9 +513,9 @@ int main(int argc, char *argv[]) {
         AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple,
                                                                                  EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock);
         std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue] (const AdjList & graph)
-            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue); }, impl_name);
+        dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue, collect_statistics] (const AdjList & graph)
+            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue, collect_statistics); }, impl_name);
     }
 
-    read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only);
+    read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only, collect_statistics);
 }

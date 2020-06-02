@@ -72,7 +72,7 @@ template <class T>
 class LockablePriorityQueueWithEmptyElement {
 private:
     ReservablePriorityQueue<T> queue;
-    const T empty_element;
+    T empty_element;
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
     std::mutex mutex;
     pthread_mutex_t pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -81,7 +81,7 @@ public:
             queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {}
 
     LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) :
-            queue(ReservablePriorityQueue<T>(512)), empty_element(empty_element) {}
+            queue(ReservablePriorityQueue<T>(512)), empty_element(o.empty_element) {}
 
     void push(T value) {
         queue.push(value);
@@ -194,7 +194,6 @@ private:
                 continue;
             }
 
-            LockablePriorityQueueWithEmptyElement<T> * q_ptr;
             // reversed comparator because std::priority_queue is a max queue
             if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
                 q1.unlock();
