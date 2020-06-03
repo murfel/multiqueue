@@ -105,8 +105,8 @@ private:
     T empty_element;
 public:
     MultiQueue(const int num_threads, const int size_multiple, T empty_element, std::size_t one_queue_reserve_size,
-            bool use_try_lock) :
-            queue(num_threads, size_multiple, empty_element, one_queue_reserve_size, use_try_lock),
+            bool use_try_lock, bool collect_statistics) :
+            queue(num_threads, size_multiple, empty_element, one_queue_reserve_size, use_try_lock, collect_statistics),
             empty_element(empty_element) {}
     void push(T elem) override {
         queue.push(elem);
@@ -500,7 +500,8 @@ int main(int argc, char *argv[]) {
             dijkstra_implementations;
     std::vector<QueueFactory> queue_factories;
     if (!run_only) {
-        auto f = [start_vertex](const AdjList &graph, bool collect_statistics) { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
+        auto f = [start_vertex](const AdjList &graph, bool collect_statistics) {
+            return calc_sssp_dijkstra_sequential(graph, start_vertex); (void)collect_statistics; };
         dijkstra_implementations.emplace_back(f, "Sequential");
     }
     if (run_blocking_queue) {
@@ -526,9 +527,9 @@ int main(int argc, char *argv[]) {
     for (const auto & param: params) {
         int num_threads = param.first;
         int size_multiple = param.second;
-        queue_factories.emplace_back([num_threads, size_multiple, one_queue_reserve_size, use_try_lock]()
+        queue_factories.emplace_back([num_threads, size_multiple, one_queue_reserve_size, use_try_lock, collect_statistics]()
                 { return std::make_unique<MultiQueue<QueueElement>>
-                  (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock); });
+                  (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock, collect_statistics); });
         const auto & multi_queue_factory = queue_factories.back();
         std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
         dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue_factory] (const AdjList & graph, bool collect_statistics)

@@ -270,8 +270,8 @@ private:
         }
     }
 public:
-    Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size = 512,
-            bool use_try_lock = false, bool collect_statistics = false) :
+    Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size,
+            bool use_try_lock, bool collect_statistics) :
             num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
             empty_element(empty_element), num_pushes(0), max_queue_sizes(num_queues, 0),
             use_try_lock(use_try_lock), collect_statistics(collect_statistics) {
