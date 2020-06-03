@@ -145,6 +145,8 @@ public:
     }
 };
 
+using QueueFactory = std::function<std::unique_ptr<AbstractQueue<QueueElement>>()>;
+
 static const DistType EMPTY_ELEMENT_DIST = -1;
 static const QueueElement EMPTY_ELEMENT = {0, EMPTY_ELEMENT_DIST};
 
@@ -231,8 +233,10 @@ std::vector<T> unwrap_from_atomic(const std::vector<std::atomic<T>> & atomic_vec
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t start_vertex,
-        std::size_t num_threads, AbstractQueue<QueueElement> & queue, bool collect_statistics) {
+        std::size_t num_threads, const QueueFactory & queue_factory, bool collect_statistics) {
     std::size_t num_vertexes = graph.size();
+    auto queue_ptr = queue_factory();
+    AbstractQueue<QueueElement> & queue = *queue_ptr;
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize(num_vertexes, INT_MAX);
     atomic_dists[0] = 0;
@@ -255,7 +259,6 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     DistVector vertex_pulls_counts = unwrap_from_atomic(atomic_vertex_pull_counts);
     std::size_t num_pushes = queue.get_num_pushes();
     auto max_queue_sizes = queue.get_max_queue_sizes();
-    delete &queue;
     return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
 }
 
@@ -374,8 +377,8 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
 }
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
-                          const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>,
-                                  std::string>> & dijkstra_implementations, bool run_only, bool collect_statistics) {
+        std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
+        dijkstra_implementations, bool run_only, bool collect_statistics) {
     AdjList graph;
     if (gen_graph_size > 0) {
         graph = gen_layer_graph(gen_graph_size);
@@ -396,7 +399,7 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         const auto & f = dijkstra_implementations[i].first;
         const std::string & impl_name = dijkstra_implementations[i].second;
         auto start = std::chrono::high_resolution_clock::now();
-        auto distsAndStatistics = f(graph);
+        auto distsAndStatistics = f(graph, collect_statistics);
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
 
@@ -483,38 +486,43 @@ int main(int argc, char *argv[]) {
     Vertex start_vertex = 0;
     std::vector<std::pair<int, int>> params = read_params(params_filename);
 
-    std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>>
+    std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
             dijkstra_implementations;
+    std::vector<QueueFactory> queue_factories;
     if (!run_only) {
-        auto f = [start_vertex](const AdjList &graph) { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
+        auto f = [start_vertex](const AdjList &graph, bool collect_statistics) { return calc_sssp_dijkstra_sequential(graph, start_vertex); };
         dijkstra_implementations.emplace_back(f, "Sequential");
     }
     if (run_blocking_queue) {
+        queue_factories.emplace_back([](){ return std::make_unique<BlockingQueue<QueueElement>>(EMPTY_ELEMENT); });
+        const auto & blocking_queue_factory = queue_factories.back();
         for (const auto & param: params) {
             int num_threads = param.first;
-            AbstractQueue<QueueElement> *blocking_queue = new BlockingQueue<QueueElement>(EMPTY_ELEMENT);
-            auto f = [start_vertex, num_threads, blocking_queue, collect_statistics](const AdjList &graph) {
-                return calc_sssp_dijkstra(graph, start_vertex, num_threads, *blocking_queue, collect_statistics);
+            auto f = [start_vertex, num_threads, & blocking_queue_factory](const AdjList &graph, bool collect_statistics) {
+                return calc_sssp_dijkstra(graph, start_vertex, num_threads, blocking_queue_factory, collect_statistics);
             };
             std::string impl_name = "BlockingQueue " + std::to_string(num_threads);
             dijkstra_implementations.emplace_back(f, impl_name);
         }
     }
     if (run_regular_queue) {
-        AbstractQueue<QueueElement> *regular_queue = new RegularPriorityQueue<QueueElement>(EMPTY_ELEMENT);
-        auto f = [start_vertex, regular_queue, collect_statistics](const AdjList &graph) {
-            return calc_sssp_dijkstra(graph, start_vertex, 1, *regular_queue, collect_statistics);
+        queue_factories.emplace_back([](){ return std::make_unique<RegularPriorityQueue<QueueElement>>(EMPTY_ELEMENT); });
+        const auto & regular_queue_factory = queue_factories.back();
+        auto f = [start_vertex, & regular_queue_factory](const AdjList &graph, bool collect_statistics) {
+            return calc_sssp_dijkstra(graph, start_vertex, 1, regular_queue_factory, collect_statistics);
         };
         dijkstra_implementations.emplace_back(f, "RegularQueue");
     }
     for (const auto & param: params) {
         int num_threads = param.first;
         int size_multiple = param.second;
-        AbstractQueue<QueueElement> * multi_queue = new MultiQueue<QueueElement>(num_threads, size_multiple,
-                                                                                 EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock);
+        queue_factories.emplace_back([num_threads, size_multiple, one_queue_reserve_size, use_try_lock]()
+                { return std::make_unique<MultiQueue<QueueElement>>
+                  (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock); });
+        const auto & multi_queue_factory = queue_factories.back();
         std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue, collect_statistics] (const AdjList & graph)
-            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, *multi_queue, collect_statistics); }, impl_name);
+        dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue_factory] (const AdjList & graph, bool collect_statistics)
+            { return calc_sssp_dijkstra(graph, start_vertex, num_threads, multi_queue_factory, collect_statistics); }, impl_name);
     }
 
     read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only, collect_statistics);
