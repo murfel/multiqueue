@@ -31,7 +31,7 @@ uint32_t xorshift32(uint32_t & x) {
     x ^= x >> 17;
     x ^= x << 5;
     return x;
-};
+}
 
 uint32_t xorshift128(uint32_t & a, uint32_t & b, uint32_t & c, uint32_t & d)
 {

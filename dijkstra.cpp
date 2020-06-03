@@ -15,7 +15,6 @@
 #include "multiqueue.h"
 
 #ifdef __linux__
-#define _GNU_SOURCE
 #include <sched.h>
 #endif
 
@@ -250,6 +249,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
             CPU_ZERO(&cpuset);
             CPU_SET(i, &cpuset);
             int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
+            (void)rc;
         #endif
     }
     for (std::thread & thread : threads) {
