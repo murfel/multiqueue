@@ -376,6 +376,17 @@ bool are_mismatched(const DistVector & correct_answer, const DistVector & to_che
     return false;
 }
 
+template<class R>
+std::pair<R, std::chrono::milliseconds> measure_time(std::function<R()> func_to_test, std::size_t num_iterations = 1) {
+    auto start = std::chrono::high_resolution_clock::now();
+    for (std::size_t i = 0; i < num_iterations - 1; i++) {
+        func_to_test();
+    }
+    R r = func_to_test();
+    auto end = std::chrono::high_resolution_clock::now();
+    return {r, std::chrono::duration_cast<std::chrono::milliseconds>(end - start) / num_iterations};
+}
+
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
         std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
         dijkstra_implementations, bool run_only, bool collect_statistics) {
@@ -383,13 +394,12 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
     if (gen_graph_size > 0) {
         graph = gen_layer_graph(gen_graph_size);
     } else {
-        auto start = std::chrono::high_resolution_clock::now();
         std::ifstream input(filename + ".in");
         std::cerr << "Reading " << filename << ", ";
-        graph = read_edges_into_adj_list(input, -1);
-        auto finish = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = finish - start;
-        std::cerr << "Reading elapsed time: " << elapsed.count() << " s" << std::endl;
+        auto p = measure_time<AdjList>([& input](){ return read_edges_into_adj_list(input, -1); });
+        graph = p.first;
+        std::chrono::milliseconds time_ms = p.second;
+        std::cerr << "Reading elapsed time: " << time_ms.count() << " ms" << std::endl;
         std::cerr << std::endl;
     }
 
@@ -398,19 +408,19 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
     for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
         const auto & f = dijkstra_implementations[i].first;
         const std::string & impl_name = dijkstra_implementations[i].second;
-        auto start = std::chrono::high_resolution_clock::now();
-        auto distsAndStatistics = f(graph, collect_statistics);
-        auto finish = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = finish - start;
 
-        std::cerr << impl_name << " elapsed time: " << elapsed.count() << " s" << std::endl;
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>([& f, & graph, collect_statistics](){ return f(graph, collect_statistics); });
+        auto dists_and_statistics = p.first;
+        auto time_ms = p.second;
+
+        std::cerr << impl_name << " elapsed time: " << time_ms.count() << " ms" << std::endl;
         if (run_only) continue;
 
-            const DistVector &dists = distsAndStatistics.get_dists();
+        const DistVector &dists = dists_and_statistics.get_dists();
         if (collect_statistics) {
-            const DistVector &vertex_pulls_counts = distsAndStatistics.get_vertex_pulls_counts();
-            std::size_t num_pushes = distsAndStatistics.get_num_pushes();
-            const auto &max_queue_sizes = distsAndStatistics.get_max_queue_sizes();
+            const DistVector &vertex_pulls_counts = dists_and_statistics.get_vertex_pulls_counts();
+            std::size_t num_pushes = dists_and_statistics.get_num_pushes();
+            const auto &max_queue_sizes = dists_and_statistics.get_max_queue_sizes();
             std::size_t vertex_pulls_sum = std::accumulate(vertex_pulls_counts.begin(), vertex_pulls_counts.end(), 0);
             double overhead = 1.0 * vertex_pulls_sum / num_vertexes;
             std::size_t useless_pushes = num_pushes - vertex_pulls_sum;
@@ -443,10 +453,10 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
 
         if (mismatched) {
             std::ofstream output(filename + ".out" + std::to_string(i));
-            start = std::chrono::high_resolution_clock::now();
+            auto start = std::chrono::high_resolution_clock::now();
             write_answer(output, dists);
-            finish = std::chrono::high_resolution_clock::now();
-            elapsed = finish - start;
+            auto finish = std::chrono::high_resolution_clock::now();
+            auto elapsed = finish - start;
             std::cerr << "Writing elapsed time: " << elapsed.count() << " s" << std::endl;
         }
     }
