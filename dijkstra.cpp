@@ -473,15 +473,15 @@ int main(int argc, char *argv[]) {
         << std::endl;
         exit(1);
     }
-    std::string input_filename_no_ext(argv[1]);
-    std::string params_filename(argv[2]);
-    std::size_t one_queue_reserve_size = std::stoul(argv[3]);
-    bool use_try_lock = std::stoi(argv[4]);
-    bool run_blocking_queue = std::stoi(argv[5]);
-    bool run_regular_queue = std::stoi(argv[6]);
-    std::size_t gen_graph_size = std::stoi(argv[7]);
-    bool run_only = std::stoi(argv[8]);
-    bool collect_statistics = std::stoi(argv[9]);
+    const std::string input_filename_no_ext(argv[1]);
+    const std::string params_filename(argv[2]);
+    const std::size_t one_queue_reserve_size = std::stoul(argv[3]);
+    const bool use_try_lock = std::stoi(argv[4]);
+    const bool run_blocking_queue = std::stoi(argv[5]);
+    const bool run_regular_queue = std::stoi(argv[6]);
+    const std::size_t gen_graph_size = std::stoi(argv[7]);
+    const bool run_only = std::stoi(argv[8]);
+    const bool collect_statistics = std::stoi(argv[9]);
 
     Vertex start_vertex = 0;
     std::vector<std::pair<int, int>> params = read_params(params_filename);
