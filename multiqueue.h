@@ -294,7 +294,7 @@ public:
 
 //            PairPadded<LockablePriorityQueueWithEmptyElement<T>> p({one_queue_reserve_size, empty_element}, arr);
             PairPadded<LockablePriorityQueueWithEmptyElement<T>> p;
-            p.first = LockablePriorityQueueWithEmptyElement(one_queue_reserve_size, empty_element);
+            p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
             queues.push_back(p);
         }
