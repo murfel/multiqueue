@@ -12,9 +12,15 @@
 #include <pthread.h>
 #include <atomic>
 
-const std::size_t CACHELINE_SIZE = 128;
+#ifdef PAIRPADDING
+template<class T, int padding_size = PADDING>
+using padded = std::pair<T, char[padding_size]>;
+#else
 template<class T>
-using PairPadded = std::pair<T, bool>;
+struct alignas(ALIGNMENT) padded {
+    T first;
+};
+#endif
 
 unsigned long xorshf96(unsigned long & x, unsigned long & y, unsigned long & z) { //period 2^96-1
     unsigned long t;
@@ -78,9 +84,6 @@ private:
     ReservablePriorityQueue<T> queue;
     T empty_element;
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
-    std::mutex mutex;
-    pthread_mutex_t pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
-    char arr[128];
 public:
     LockablePriorityQueueWithEmptyElement() = default;
     LockablePriorityQueueWithEmptyElement(std::size_t reserve_size, const T empty_element) :
@@ -96,7 +99,6 @@ public:
     }
 
     void push(T value) {
-        (void) arr;
         queue.push(value);
     }
 
@@ -137,7 +139,7 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::vector<PairPadded<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<padded<LockablePriorityQueueWithEmptyElement<T>>> queues;
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
@@ -292,8 +294,7 @@ public:
         for (std::size_t i = 0; i < num_queues; i++) {
             auto q = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
-//            PairPadded<LockablePriorityQueueWithEmptyElement<T>> p({one_queue_reserve_size, empty_element}, arr);
-            PairPadded<LockablePriorityQueueWithEmptyElement<T>> p;
+            padded<LockablePriorityQueueWithEmptyElement<T>> p;
             p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
             queues.push_back(p);

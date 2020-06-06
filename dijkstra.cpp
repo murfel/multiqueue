@@ -21,7 +21,7 @@
 using Vertex = std::size_t;
 using DistType = int;
 using DistVector = std::vector<DistType>;
-using AtomicDistVector = std::vector<PairPadded<std::atomic<DistType>>>;
+using AtomicDistVector = std::vector<padded<std::atomic<DistType>>>;
 
 class Edge {
 private:
