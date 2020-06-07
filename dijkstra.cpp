@@ -15,6 +15,7 @@
 #include "multiqueue.h"
 
 #ifdef __linux__
+#include <pthread.h>
 #include <sched.h>
 #endif
 
