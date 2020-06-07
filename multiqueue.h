@@ -22,6 +22,11 @@ struct alignas(ALIGNMENT) padded {
 };
 #endif
 
+template<class T>
+struct alignas(ALIGNMENT) not_padded {
+    T first;
+};
+
 unsigned long xorshf96(unsigned long & x, unsigned long & y, unsigned long & z) { //period 2^96-1
     unsigned long t;
     x ^= x << 16;
@@ -139,7 +144,7 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::vector<padded<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<not_padded<LockablePriorityQueueWithEmptyElement<T>>> queues;
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
@@ -294,7 +299,7 @@ public:
         for (std::size_t i = 0; i < num_queues; i++) {
             auto q = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
-            padded<LockablePriorityQueueWithEmptyElement<T>> p;
+            not_padded<LockablePriorityQueueWithEmptyElement<T>> p;
             p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
             queues.push_back(p);
