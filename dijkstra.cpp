@@ -550,7 +550,7 @@ int main(int argc, char *argv[]) {
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, multi_queue_factory, collect_statistics); }, impl_name);
     }
 
-    if (num_iterations > 1) {
+    if (num_iterations > 0) {
         read_run_measure(input_filename_no_ext, dijkstra_implementations, num_iterations);
     } else {
         read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only,
