@@ -147,7 +147,7 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<LockablePriorityQueueWithEmptyElement<T>> queues;
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
@@ -159,7 +159,7 @@ private:
 
     void push_lock(T value) {
         std::size_t i = gen_random_queue_index();
-        auto &queue = queues[i].first;
+        auto &queue = queues[i];
         queue.lock();
         if (queue.top() == empty_element) {
             num_non_empty_queues++;
@@ -177,7 +177,7 @@ private:
         std::size_t i;
         do {
             i = gen_random_queue_index();
-            q_ptr = &queues[i].first;
+            q_ptr = &queues[i];
         } while (!q_ptr->try_lock());
         auto & q = *q_ptr;
         if (q.top() == empty_element) {
@@ -202,8 +202,8 @@ private:
                 j = gen_random_queue_index();
             } while (i == j);
 
-            auto & q1 = queues[std::min(i, j)].first;
-            auto & q2 = queues[std::max(i, j)].first;
+            auto & q1 = queues[std::min(i, j)];
+            auto & q2 = queues[std::max(i, j)];
 
             q1.lock();
             q2.lock();
@@ -251,14 +251,14 @@ private:
                 do {
                     i = gen_random_queue_index();
                 } while (i == num_queues - 1);
-                q1_ptr = &queues[i].first;
+                q1_ptr = &queues[i];
             } while (!q1_ptr->try_lock());
             do {
                 // lock in the increasing order to avoid the ABA problem
                 do {
                     j = gen_random_queue_index();
                 } while (j <= i);
-                q2_ptr = &queues[j].first;
+                q2_ptr = &queues[j];
             } while (!q2_ptr->try_lock());
 
             auto & q1 = *q1_ptr;
@@ -300,12 +300,7 @@ public:
             use_try_lock(use_try_lock), collect_statistics(collect_statistics) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            auto q = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
-
-            QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>> p;
-            p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
-
-            queues.push_back(p);
+            queues.emplace_back(one_queue_reserve_size, empty_element);
         }
     }
     std::size_t gen_random_queue_index() {
