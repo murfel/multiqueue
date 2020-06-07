@@ -1,4 +1,5 @@
 #include <iostream>
+#include <random>
 #include <thread>
 #include <mutex>
 #include <algorithm>
@@ -32,6 +33,9 @@ public:
     Edge(Vertex to, DistType weight) : to(to), weight(weight) {}
     Vertex get_to() const {
         return to;
+    }
+    void set_to(Vertex to) {
+        this->to = to;
     }
     DistType get_weight() const {
         return weight;
@@ -344,6 +348,20 @@ AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
     return adj_matrix;
 }
 
+void shuffle(AdjList & graph) {
+//    std::size_t n = graph.size();
+//    std::vector<std::size_t> perm(n);
+//    std::iota(perm.begin(), perm.end(), 0);
+//    std::shuffle(perm.begin(), perm.end(), std::mt19937(std::random_device()()));
+
+    for (auto &edges : graph) {
+//        for (auto &edge : edges) {
+//            edge.set_to(perm[edge.get_to()]);
+//        }
+        std::shuffle(edges.begin(), edges.end(), std::mt19937(std::random_device()()));
+    }
+}
+
 AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_offset = 0) {
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
@@ -355,6 +373,7 @@ AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_o
         if (weight <= 0) continue;
         adj_list[from + vertex_numeration_offset].emplace_back(to + vertex_numeration_offset, weight);
     }
+    shuffle(adj_list);
     return adj_list;
 }
 
@@ -386,16 +405,22 @@ std::pair<R, std::chrono::milliseconds> measure_time(std::function<R()> func_to_
 }
 
 void read_run_measure(const std::string & filename,
-        const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
+        const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, Vertex, bool)>, std::string>>
         & dijkstra_implementations, std::size_t num_iterations) {
     std::ifstream input(filename + ".in");
     AdjList graph = read_edges_into_adj_list(input, -1);
+
+    std::random_device rand_dev;
+    std::mt19937 generator(rand_dev());
+    std::uniform_int_distribution<int>  distr(0, graph.size() - 1);
+    const Vertex start_vertex = distr(generator);
+
     for (const auto & dijkstra_implementation : dijkstra_implementations) {
         const auto &f = dijkstra_implementation.first;
         const std::string &impl_name = dijkstra_implementation.second;
 
         auto p = measure_time<SsspDijkstraDistsAndStatistics>(
-                [& f, & graph]() { return f(graph, false); }, num_iterations);
+                [& f, start_vertex, & graph]() { return f(graph, start_vertex, false); }, num_iterations);
         auto avg_time_ms = p.second;
 
         std::cerr << impl_name << " — " << avg_time_ms.count() << " ms" << std::endl;
@@ -403,7 +428,7 @@ void read_run_measure(const std::string & filename,
 }
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
-        const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
+        const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, Vertex, bool)>, std::string>>
         & dijkstra_implementations, bool run_only, bool collect_statistics) {
     AdjList graph;
     if (gen_graph_size > 0) {
@@ -420,11 +445,12 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
 
     DistVector correct_answer;
     std::size_t num_vertexes = graph.size();
+    const Vertex start_vertex = 0;
     for (std::size_t i = 0; i < dijkstra_implementations.size(); i++) {
         const auto & f = dijkstra_implementations[i].first;
         const std::string & impl_name = dijkstra_implementations[i].second;
 
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>([& f, & graph, collect_statistics](){ return f(graph, collect_statistics); });
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>([& f, & graph, collect_statistics](){ return f(graph, start_vertex, collect_statistics); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
@@ -509,13 +535,12 @@ int main(int argc, char *argv[]) {
     const bool collect_statistics = std::stoi(argv[9]);
     const std::size_t num_iterations = std::stoi(argv[10]);
 
-    Vertex start_vertex = 0;
     std::vector<std::pair<int, int>> params = read_params(params_filename);
 
-    std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, bool)>, std::string>>
+    std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, Vertex, bool)>, std::string>>
             dijkstra_implementations;
     std::vector<QueueFactory> queue_factories;
-    auto sequential_dijkstra = [start_vertex](const AdjList &graph, bool collect_statistics) {
+    auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
             return calc_sssp_dijkstra_sequential(graph, start_vertex); (void)collect_statistics; };
     dijkstra_implementations.emplace_back(sequential_dijkstra, "Sequential");
     if (run_blocking_queue) {
@@ -523,7 +548,7 @@ int main(int argc, char *argv[]) {
         const auto & blocking_queue_factory = queue_factories.back();
         for (const auto & param: params) {
             int num_threads = param.first;
-            auto f = [start_vertex, num_threads, & blocking_queue_factory](const AdjList &graph, bool collect_statistics) {
+            auto f = [num_threads, & blocking_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
                 return calc_sssp_dijkstra(graph, start_vertex, num_threads, blocking_queue_factory, collect_statistics);
             };
             std::string impl_name = "BlockingQueue " + std::to_string(num_threads);
@@ -533,7 +558,7 @@ int main(int argc, char *argv[]) {
     if (run_regular_queue) {
         queue_factories.emplace_back([](){ return std::make_unique<RegularPriorityQueue<QueueElement>>(EMPTY_ELEMENT); });
         const auto & regular_queue_factory = queue_factories.back();
-        auto f = [start_vertex, & regular_queue_factory](const AdjList &graph, bool collect_statistics) {
+        auto f = [& regular_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
             return calc_sssp_dijkstra(graph, start_vertex, 1, regular_queue_factory, collect_statistics);
         };
         dijkstra_implementations.emplace_back(f, "RegularQueue");
@@ -546,7 +571,7 @@ int main(int argc, char *argv[]) {
                   (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock, collect_statistics); });
         const auto & multi_queue_factory = queue_factories.back();
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue_factory] (const AdjList & graph, bool collect_statistics)
+        dijkstra_implementations.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph, Vertex start_vertex, bool collect_statistics)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, multi_queue_factory, collect_statistics); }, impl_name);
     }
 
