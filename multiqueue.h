@@ -9,7 +9,6 @@
 #include <cstring>
 #include <cstdint>
 #include <cstdlib>
-#include <pthread.h>
 #include <atomic>
 
 // Set DISTPADDING and QUEUEPADDING to either of char_padded, bool_padded, aligned, or not_padded.
