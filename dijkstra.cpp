@@ -347,7 +347,6 @@ AdjList read_adj_matrix_into_adj_list(std::istream & istream) {
 AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_offset = 0) {
     std::size_t num_verticies, num_edges;
     istream >> num_verticies >> num_edges;
-    std::cerr << "n = " << num_verticies << ", m = " <<  num_edges << std::endl;
     AdjList adj_list(num_verticies);
     for (std::size_t i = 0; i < num_edges; i++) {
         Vertex from, to;
@@ -391,7 +390,6 @@ void read_run_measure(const std::string & filename,
         & dijkstra_implementations, std::size_t num_iterations) {
     std::ifstream input(filename + ".in");
     AdjList graph = read_edges_into_adj_list(input, -1);
-    std::cerr << "Num iterations: " << num_iterations << std::endl;
     for (const auto & dijkstra_implementation : dijkstra_implementations) {
         const auto &f = dijkstra_implementation.first;
         const std::string &impl_name = dijkstra_implementation.second;
@@ -400,7 +398,7 @@ void read_run_measure(const std::string & filename,
                 [& f, & graph]() { return f(graph, false); }, num_iterations);
         auto avg_time_ms = p.second;
 
-        std::cerr << impl_name << " avg elapsed time: " << avg_time_ms.count() << " ms" << std::endl;
+        std::cerr << impl_name << " — " << avg_time_ms.count() << " ms" << std::endl;
     }
 }
 
@@ -416,7 +414,7 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         auto p = measure_time<AdjList>([& input](){ return read_edges_into_adj_list(input, -1); });
         graph = p.first;
         std::chrono::milliseconds time_ms = p.second;
-        std::cerr << "Reading elapsed time: " << time_ms.count() << " ms" << std::endl;
+        std::cerr << "Reading: " << time_ms.count() << " ms" << std::endl;
         std::cerr << std::endl;
     }
 
@@ -547,7 +545,7 @@ int main(int argc, char *argv[]) {
                 { return std::make_unique<MultiQueue<QueueElement>>
                   (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size, use_try_lock, collect_statistics); });
         const auto & multi_queue_factory = queue_factories.back();
-        std::string impl_name = "Multiqueue " + std::to_string(num_threads) + " " + std::to_string(size_multiple);
+        std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         dijkstra_implementations.emplace_back([start_vertex, num_threads, multi_queue_factory] (const AdjList & graph, bool collect_statistics)
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, multi_queue_factory, collect_statistics); }, impl_name);
     }
