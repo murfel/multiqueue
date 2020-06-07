@@ -12,18 +12,22 @@
 #include <pthread.h>
 #include <atomic>
 
-#ifdef PAIRPADDING
+// Set DISTPADDING and QUEUEPADDING to either of char_padded, bool_padded, aligned, or not_padded.
+// If using char_padded or aligned, set PADDING or ALIGNMENT, respectively.
+
 template<class T, int padding_size = PADDING>
-using padded = std::pair<T, char[padding_size]>;
-#else
-template<class T>
-struct alignas(ALIGNMENT) padded {
-    T first;
-};
-#endif
+using char_padded = std::pair<T, char[padding_size]>;
 
 template<class T>
-struct alignas(ALIGNMENT) not_padded {
+using bool_padded = std::pair<T, bool>;
+
+template<class T>
+struct alignas(ALIGNMENT) aligned {
+    T first;
+};
+
+template<class T>
+struct not_padded {
     T first;
 };
 
@@ -144,7 +148,7 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::vector<not_padded<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues;
     const std::size_t num_queues;
     std::atomic<std::size_t> num_non_empty_queues;
     T empty_element;
@@ -299,7 +303,7 @@ public:
         for (std::size_t i = 0; i < num_queues; i++) {
             auto q = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
-            not_padded<LockablePriorityQueueWithEmptyElement<T>> p;
+            QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>> p;
             p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
 
             queues.push_back(p);
