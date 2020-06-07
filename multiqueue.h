@@ -149,20 +149,20 @@ class Multiqueue {
 private:
     std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues;
     const std::size_t num_queues;
-    std::atomic<std::size_t> num_non_empty_queues;
-    T empty_element;
+    QUEUEPADDING<std::atomic<std::size_t>> num_non_empty_queues;
+    const T empty_element;
     std::atomic<std::size_t> num_threads{0};
-    std::atomic<std::size_t> num_pushes;
+    std::atomic<std::size_t> num_pushes{0};
     std::vector<std::size_t> max_queue_sizes;
-    bool use_try_lock;
-    bool collect_statistics;
+    const bool use_try_lock;
+    const bool collect_statistics;
 
     void push_lock(T value) {
         std::size_t i = gen_random_queue_index();
         auto &queue = queues[i].first;
         queue.lock();
         if (queue.top() == empty_element) {
-            num_non_empty_queues++;
+            num_non_empty_queues.first++;
         }
         queue.push(value);
         if (collect_statistics) {
@@ -181,7 +181,7 @@ private:
         } while (!q_ptr->try_lock());
         auto & q = *q_ptr;
         if (q.top() == empty_element) {
-            num_non_empty_queues++;
+            num_non_empty_queues.first++;
         }
         q.push(value);
         if (collect_statistics) {
@@ -192,7 +192,7 @@ private:
     }
     T pop_lock() {
         while (true) {
-            if (num_non_empty_queues == 0) {
+            if (num_non_empty_queues.first == 0) {
                 return empty_element;
             }
 
@@ -222,7 +222,7 @@ private:
                 q1.unlock();
                 T e = q2.pop();
                 if (q2.top() == empty_element) {
-                    num_non_empty_queues--;
+                    num_non_empty_queues.first--;
                 }
                 q2.unlock();
                 return e;
@@ -230,7 +230,7 @@ private:
                 q2.unlock();
                 T e = q1.pop();
                 if (q1.top() == empty_element) {
-                    num_non_empty_queues--;
+                    num_non_empty_queues.first--;
                 }
                 q1.unlock();
                 return e;
@@ -240,7 +240,7 @@ private:
 
     T pop_try_lock() {
         while (true) {
-            if (num_non_empty_queues == 0) {
+            if (num_non_empty_queues.first == 0) {
                 return empty_element;
             }
 
@@ -286,7 +286,7 @@ private:
 
             T e = q.pop();
             if (q.top() == empty_element) {
-                num_non_empty_queues--;
+                num_non_empty_queues.first--;
             }
             q.unlock();
             return e;
@@ -295,9 +295,10 @@ private:
 public:
     Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size,
             bool use_try_lock, bool collect_statistics) :
-            num_queues(std::max(2, num_threads * size_multiple)), num_non_empty_queues(0),
-            empty_element(empty_element), num_pushes(0), max_queue_sizes(num_queues, 0),
+            num_queues(std::max(2, num_threads * size_multiple)),
+            empty_element(empty_element), max_queue_sizes(num_queues, 0),
             use_try_lock(use_try_lock), collect_statistics(collect_statistics) {
+        num_non_empty_queues.first = 0;
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>> p;
