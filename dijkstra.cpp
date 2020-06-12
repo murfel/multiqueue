@@ -429,7 +429,7 @@ void read_run_measure(const std::string & filename,
 
 void read_run_check_write(const std::string & filename, std::size_t gen_graph_size,
         const std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, Vertex, bool)>, std::string>>
-        & dijkstra_implementations, bool run_only, bool collect_statistics) {
+        & dijkstra_implementations, bool collect_statistics) {
     AdjList graph;
     if (gen_graph_size > 0) {
         graph = gen_layer_graph(gen_graph_size);
@@ -455,7 +455,6 @@ void read_run_check_write(const std::string & filename, std::size_t gen_graph_si
         auto time_ms = p.second;
 
         std::cerr << impl_name << " elapsed time: " << time_ms.count() << " ms" << std::endl;
-        if (run_only) continue;
 
         const DistVector &dists = dists_and_statistics.get_dists();
         if (collect_statistics) {
@@ -517,32 +516,40 @@ std::vector<std::pair<int, int>> read_params(const std::string & params_filename
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
 
-    if (argc != 11) {
-        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size use_try_lock[0,1] "
-                     "run_blocking_queue[0,1] run_regular_queue[0,1] gen_graph_size run_only[0,1] "
-                     "collect_statistics[0,1] num_iterations"
+    if (argc != 7) {
+        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size run_seq[0,1] "
+                     "check[0,1] num_iterations"
         << std::endl;
         exit(1);
     }
     const std::string input_filename_no_ext(argv[1]);
     const std::string params_filename(argv[2]);
     const std::size_t one_queue_reserve_size = std::stoul(argv[3]);
-    const bool use_try_lock = std::stoi(argv[4]);
-    const bool run_blocking_queue = std::stoi(argv[5]);
-    const bool run_regular_queue = std::stoi(argv[6]);
-    const std::size_t gen_graph_size = std::stoi(argv[7]);
-    const bool run_only = std::stoi(argv[8]);
-    const bool collect_statistics = std::stoi(argv[9]);
-    const std::size_t num_iterations = std::stoi(argv[10]);
+//    const bool use_try_lock = std::stoi(argv[4]);
+//    const bool run_blocking_queue = std::stoi(argv[5]);
+//    const bool run_regular_queue = std::stoi(argv[6]);
+//    const std::size_t gen_graph_size = std::stoi(argv[7]);
+    const bool run_seq = std::stoi(argv[4]);
+    const bool check = std::stoi(argv[5]);
+//    const bool collect_statistics = std::stoi(argv[9]);
+    const std::size_t num_iterations = std::stoi(argv[6]);
+
+    const bool use_try_lock = false;
+    const bool run_blocking_queue = false;
+    const bool run_regular_queue = false;
+    const std::size_t gen_graph_size = 0;
+    const bool collect_statistics = false;
 
     std::vector<std::pair<int, int>> params = read_params(params_filename);
 
     std::vector<std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, Vertex, bool)>, std::string>>
             dijkstra_implementations;
     std::vector<QueueFactory> queue_factories;
-    auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
+    if (run_seq) {
+        auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
             return calc_sssp_dijkstra_sequential(graph, start_vertex); (void)collect_statistics; };
-    dijkstra_implementations.emplace_back(sequential_dijkstra, "Sequential");
+        dijkstra_implementations.emplace_back(sequential_dijkstra, "Sequential");
+    }
     if (run_blocking_queue) {
         queue_factories.emplace_back([](){ return std::make_unique<BlockingQueue<QueueElement>>(EMPTY_ELEMENT); });
         const auto & blocking_queue_factory = queue_factories.back();
@@ -575,11 +582,10 @@ int main(int argc, char *argv[]) {
             { return calc_sssp_dijkstra(graph, start_vertex, num_threads, multi_queue_factory, collect_statistics); }, impl_name);
     }
 
-    if (num_iterations > 0) {
-        read_run_measure(input_filename_no_ext, dijkstra_implementations, num_iterations);
+    if (check) {
+        read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, collect_statistics);
     } else {
-        read_run_check_write(input_filename_no_ext, gen_graph_size, dijkstra_implementations, run_only,
-                             collect_statistics);
+        read_run_measure(input_filename_no_ext, dijkstra_implementations, num_iterations);
     }
 
 }
