@@ -166,7 +166,7 @@ public:
             std::vector<std::size_t> max_queue_sizes) :
             dists(std::move(dists)), vertex_pulls_counts(std::move(vertex_pulls_counts)), num_pushes(num_pushes),
             max_queue_sizes(std::move(max_queue_sizes)) {}
-
+    SsspDijkstraDistsAndStatistics() = default;
     const DistVector &get_dists() const {
         return dists;
     }
@@ -263,6 +263,43 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     std::size_t num_pushes = queue.get_num_pushes();
     auto max_queue_sizes = queue.get_max_queue_sizes();
     return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
+}
+
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_one_thread(const AdjList & graph, std::size_t start_vertex) {
+    RegularPriorityQueue<QueueElement> queue(EMPTY_ELEMENT);
+    queue.push({start_vertex, 0});
+    std::size_t num_vertexes = graph.size();
+    AtomicDistVector dists = initialize(num_vertexes, INT_MAX);
+    dists[start_vertex].first = 0;
+
+    while (true) {
+        QueueElement elem = queue.pop();
+        if (elem.get_dist() == EMPTY_ELEMENT_DIST) {
+            break;
+        }
+        Vertex v = elem.get_vertex();
+        DistType v_dist = elem.get_dist();
+        DistType v_global_dist = dists[v].first;
+        if (v_dist > v_global_dist) {
+            continue;
+        }
+        for (Edge e : graph[v]) {
+            Vertex v2 = e.get_to();
+            if (v == v2) continue;
+            DistType new_v2_dist = v_dist + e.get_weight();
+            while (true) {
+                DistType old_v2_dist = dists[v2].first;
+                if (old_v2_dist <= new_v2_dist) {
+                    break;
+                }
+                if (dists[v2].first.compare_exchange_strong(old_v2_dist, new_v2_dist)) {
+                    queue.push({v2, new_v2_dist});
+                    break;
+                }
+            }
+        }
+    }
+    return {};
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex) {
@@ -551,6 +588,11 @@ int main(int argc, char *argv[]) {
             return calc_sssp_dijkstra_sequential(graph, start_vertex); (void)collect_statistics; };
         dijkstra_implementations.emplace_back(sequential_dijkstra, "Sequential");
     }
+    if (true) {
+        auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
+            return calc_sssp_dijkstra_one_thread(graph, start_vertex); (void)collect_statistics; };
+        dijkstra_implementations.emplace_back(sequential_dijkstra, "One thread");
+    }
     if (run_blocking_queue) {
         queue_factories.emplace_back([](){ return std::make_unique<BlockingQueue<QueueElement>>(EMPTY_ELEMENT); });
         const auto & blocking_queue_factory = queue_factories.back();
@@ -563,7 +605,7 @@ int main(int argc, char *argv[]) {
             dijkstra_implementations.emplace_back(f, impl_name);
         }
     }
-    if (run_regular_queue) {
+    if (true) {
         queue_factories.emplace_back([](){ return std::make_unique<RegularPriorityQueue<QueueElement>>(EMPTY_ELEMENT); });
         const auto & regular_queue_factory = queue_factories.back();
         auto f = [& regular_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
