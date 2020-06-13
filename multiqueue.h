@@ -296,7 +296,7 @@ private:
 public:
     Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size,
             bool use_try_lock, bool collect_statistics) :
-            num_queues(std::max(2, num_threads * size_multiple)),
+            num_queues(num_threads * size_multiple),
             empty_element(empty_element), max_queue_sizes(num_queues, 0),
             use_try_lock(use_try_lock), collect_statistics(collect_statistics) {
 //        num_non_empty_queues.first = 0;
@@ -312,6 +312,13 @@ public:
         return random_fnv1a(seed) % num_queues;
     }
     void push(T value) {
+        if (num_queues == 1) {
+            auto & q = queues.front().first;
+            q.lock();
+            q.push(value);
+            q.unlock();
+            return;
+        }
         if (use_try_lock) {
             push_try_lock(value);
         } else {
@@ -319,6 +326,14 @@ public:
         }
     }
     T pop() {
+        if (num_queues == 1) {
+            auto & q = queues.front().first;
+            q.lock();
+            T e = q.top();
+            q.pop();
+            q.unlock();
+            return e;
+        }
         if (use_try_lock)  {
             return pop_try_lock();
         } else {

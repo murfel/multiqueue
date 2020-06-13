@@ -373,7 +373,7 @@ AdjList read_edges_into_adj_list(std::istream & istream, int vertex_numeration_o
         if (weight <= 0) continue;
         adj_list[from + vertex_numeration_offset].emplace_back(to + vertex_numeration_offset, weight);
     }
-    shuffle(adj_list);
+//    shuffle(adj_list);
     return adj_list;
 }
 
@@ -413,7 +413,8 @@ void read_run_measure(const std::string & filename,
     std::random_device rand_dev;
     std::mt19937 generator(rand_dev());
     std::uniform_int_distribution<int>  distr(0, graph.size() - 1);
-    const Vertex start_vertex = distr(generator);
+//    const Vertex start_vertex = distr(generator);
+    const Vertex start_vertex = 0;
 
     for (const auto & dijkstra_implementation : dijkstra_implementations) {
         const auto &f = dijkstra_implementation.first;
