@@ -618,7 +618,7 @@ int main(int argc, char *argv[]) {
         const auto & blocking_queue_factory = queue_factories.back();
         for (const auto & param: params) {
             int num_threads = param.first;
-            auto f = [num_threads, & blocking_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
+            auto f = [num_threads, blocking_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
                 return calc_sssp_dijkstra(graph, start_vertex, num_threads, blocking_queue_factory, collect_statistics);
             };
             std::string impl_name = "BlockingQueue " + std::to_string(num_threads);
@@ -628,7 +628,7 @@ int main(int argc, char *argv[]) {
     if (true) {
         queue_factories.emplace_back([](){ return std::make_unique<RegularPriorityQueue<QueueElement>>(EMPTY_ELEMENT); });
         const auto & regular_queue_factory = queue_factories.back();
-        auto f = [& regular_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
+        auto f = [regular_queue_factory](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
             return calc_sssp_dijkstra(graph, start_vertex, 1, regular_queue_factory, collect_statistics);
         };
         dijkstra_implementations.emplace_back(f, "RegularQueue");
