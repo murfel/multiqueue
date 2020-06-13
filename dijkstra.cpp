@@ -265,7 +265,21 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
 }
 
-SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_one_thread(const AdjList & graph, std::size_t start_vertex) {
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_one_new_thread(const AdjList & graph, std::size_t start_vertex) {
+    auto queue_ptr = new RegularPriorityQueue<QueueElement>(EMPTY_ELEMENT);
+    AbstractQueue<QueueElement> &queue = *queue_ptr;
+    queue.push({start_vertex, 0});
+    std::size_t num_vertexes = graph.size();
+    AtomicDistVector dists = initialize(num_vertexes, INT_MAX);
+    dists[start_vertex].first = 0;
+
+    std::thread thread(thread_routine, std::cref(graph), std::ref(queue), std::ref(dists),
+                       std::ref(dists), false);
+    thread.join();
+    return {};
+}
+
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_one_main_thread(const AdjList & graph, std::size_t start_vertex) {
     RegularPriorityQueue<QueueElement> queue(EMPTY_ELEMENT);
     queue.push({start_vertex, 0});
     std::size_t num_vertexes = graph.size();
@@ -590,8 +604,13 @@ int main(int argc, char *argv[]) {
     }
     if (true) {
         auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
-            return calc_sssp_dijkstra_one_thread(graph, start_vertex); (void)collect_statistics; };
-        dijkstra_implementations.emplace_back(sequential_dijkstra, "One thread");
+            return calc_sssp_dijkstra_one_main_thread(graph, start_vertex); (void)collect_statistics; };
+        dijkstra_implementations.emplace_back(sequential_dijkstra, "One main thread");
+    }
+    if (true) {
+        auto sequential_dijkstra = [](const AdjList &graph, Vertex start_vertex, bool collect_statistics) {
+            return calc_sssp_dijkstra_one_new_thread(graph, start_vertex); (void)collect_statistics; };
+        dijkstra_implementations.emplace_back(sequential_dijkstra, "One new thread");
     }
     if (run_blocking_queue) {
         queue_factories.emplace_back([](){ return std::make_unique<BlockingQueue<QueueElement>>(EMPTY_ELEMENT); });
