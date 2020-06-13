@@ -193,7 +193,7 @@ private:
         q.unlock();
     }
     T pop_lock() {
-        for (int dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
+        for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
 //            if (num_non_empty_queues.first == 0) {
 //                return empty_element;
 //            }
