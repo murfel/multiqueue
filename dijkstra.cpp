@@ -242,11 +242,11 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize(num_vertexes, INT_MAX);
     atomic_dists[0].first = 0;
-    AtomicDistVector atomic_vertex_pull_counts = initialize(num_vertexes, 0);
+    //AtomicDistVector atomic_vertex_pull_counts = initialize(num_vertexes, 0);
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_vertex_pull_counts), collect_statistics);
+                std::ref(atomic_dists), false);
         #ifdef __linux__
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -258,11 +258,12 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     for (std::thread & thread : threads) {
         thread.join();
     }
-    DistVector dists = unwrap_from_atomic(atomic_dists);
-    DistVector vertex_pulls_counts = unwrap_from_atomic(atomic_vertex_pull_counts);
-    std::size_t num_pushes = queue.get_num_pushes();
-    auto max_queue_sizes = queue.get_max_queue_sizes();
-    return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
+    return {};
+//    DistVector dists = unwrap_from_atomic(atomic_dists);
+//    DistVector vertex_pulls_counts = unwrap_from_atomic(atomic_vertex_pull_counts);
+//    std::size_t num_pushes = queue.get_num_pushes();
+//    auto max_queue_sizes = queue.get_max_queue_sizes();
+//    return {dists, vertex_pulls_counts, num_pushes, max_queue_sizes};
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_one_new_thread(const AdjList & graph, std::size_t start_vertex) {
