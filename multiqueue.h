@@ -14,6 +14,8 @@
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
 
+const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
+
 template<class T>
 struct padded {
     T first;
@@ -191,7 +193,7 @@ private:
         q.unlock();
     }
     T pop_lock() {
-        for (int dummy_i = 0; dummy_i < 1000; dummy_i++) {
+        for (int dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
 //            if (num_non_empty_queues.first == 0) {
 //                return empty_element;
 //            }
