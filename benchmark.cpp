@@ -173,7 +173,7 @@ int main(int argc, char** argv) {
         check(binded_impls);
     } else {
         for (const auto & impl : binded_impls) {
-            benchmark::RegisterBenchmark(impl.second.c_str(), BM_benchmark, impl);
+            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl);
         }
         int pseudo_argc = 1;
         benchmark::Initialize(&pseudo_argc, argv);
