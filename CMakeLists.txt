@@ -9,6 +9,7 @@ target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
 set(TEST_SOURCES
         test/main.cpp
+        test/test_binary_heap.cpp
         )
 
 add_executable(all_test ${TEST_SOURCES})
