@@ -16,6 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include "multiqueue.h"
+#include "binary_heap.h"
 
 
 #ifdef __linux__
@@ -23,8 +24,6 @@
 #include <sched.h>
 #endif
 
-using Vertex = std::size_t;
-using DistType = int;
 using DistVector = std::vector<DistType>;
 using AtomicDistVector = std::vector<DISTPADDING<std::atomic<DistType>>>;
 
@@ -51,14 +50,14 @@ using AdjList = std::vector<std::vector<Edge>>;
 template <class T>
 class AbstractQueue {
 public:
-    virtual void push(T elem) = 0;
+    virtual void push(T * element, DistType new_dist) = 0;
     virtual std::size_t get_num_pushes() {
         return 0;
     }
     virtual std::vector<std::size_t> get_max_queue_sizes() {
         return std::vector<std::size_t>();
     }
-    virtual T pop() = 0;
+    virtual T * pop() = 0;
     virtual ~AbstractQueue() = default;
 };
 
@@ -105,16 +104,15 @@ public:
     }
 };
 
-template <class T>
-class MultiQueue : public AbstractQueue<T> {
+
+class MultiQueue : public AbstractQueue<QueueElement> {
 private:
-    Multiqueue<T> queue;
-    T empty_element;
+    Multiqueue queue;
 public:
-    MultiQueue(const int num_threads, const int size_multiple, T empty_element, std::size_t one_queue_reserve_size) :
-            queue(num_threads, size_multiple, empty_element, one_queue_reserve_size), empty_element(empty_element) {}
-    void push(T elem) override {
-        queue.push(elem);
+    MultiQueue(const int num_threads, const int size_multiple, std::size_t one_queue_reserve_size) :
+            queue(num_threads, size_multiple, one_queue_reserve_size) {}
+    void push(QueueElement * element, DistType new_dist) override {
+        queue.push(element, new_dist);
     }
     std::size_t get_num_pushes() override {
         return queue.get_num_pushes();
@@ -122,38 +120,12 @@ public:
     std::vector<std::size_t> get_max_queue_sizes() override {
         return queue.get_max_queue_sizes();
     }
-    T pop() override {
+    QueueElement * pop() override {
         return queue.pop();
     }
 };
 
-class QueueElement {
-private:
-    Vertex vertex;
-    DistType dist;
-public:
-    QueueElement(Vertex vertex = 0, DistType dist = -1) : vertex(vertex), dist(dist) {}
-    Vertex get_vertex() const {
-        return vertex;
-    }
-    DistType get_dist() const {
-        return dist;
-    }
-    bool operator==(const QueueElement & o) const {
-        return o.get_vertex() == vertex && o.get_dist() == dist;
-    }
-    bool operator!=(const QueueElement & o) const {
-        return !operator==(o);
-    }
-    bool operator<(const QueueElement & o) const {
-        return dist > o.get_dist();
-    }
-};
-
 using QueueFactory = std::function<std::unique_ptr<AbstractQueue<QueueElement>>()>;
-
-static const DistType EMPTY_ELEMENT_DIST = -1;
-static const QueueElement EMPTY_ELEMENT = {0, EMPTY_ELEMENT_DIST};
 
 class SsspDijkstraDistsAndStatistics {
 private:
@@ -183,37 +155,26 @@ public:
     }
 };
 
-void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, AtomicDistVector & dists,
-        AtomicDistVector & vertex_pull_counts, bool collect_statistics) {
+void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes) {
     while (true) {
-        QueueElement elem = queue.pop();
+        QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
-        if (elem.get_dist() == EMPTY_ELEMENT_DIST) {
+        if (elem->dist == EMPTY_ELEMENT_DIST) {
 //            std::cerr << "bye" << std::endl;
             break;
         }
-        Vertex v = elem.get_vertex();
-        DistType v_dist = elem.get_dist();
-        DistType v_global_dist = dists[v].first;
-        if (v_dist > v_global_dist) {
-            continue;
-        }
-        if (collect_statistics) {
-            vertex_pull_counts[v].first++;
-        }
+        const Vertex v = elem->vertex;
+        const DistType & v_dist = elem->dist;
         for (Edge e : graph[v]) {
             Vertex v2 = e.get_to();
             if (v == v2) continue;
-            DistType new_v2_dist = v_dist + e.get_weight();
             while (true) {
-                DistType old_v2_dist = dists[v2].first;
+                DistType new_v2_dist = v_dist + e.get_weight();
+                DistType old_v2_dist = vertexes[v2].dist;
                 if (old_v2_dist <= new_v2_dist) {
                     break;
                 }
-                if (dists[v2].first.compare_exchange_strong(old_v2_dist, new_v2_dist)) {
-                    queue.push({v2, new_v2_dist});
-                    break;
-                }
+                queue.push(&vertexes[v2], new_v2_dist);
             }
         }
     }
@@ -237,48 +198,55 @@ std::vector<DistType> unwrap_vector_from_atomic(const AtomicDistVector & atomic_
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-        const QueueFactory & queue_factory, std::size_t start_vertex = 0) {
+                                                  const QueueFactory & queue_factory) {
+    const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
     AbstractQueue<QueueElement> & queue = *queue_ptr;
-    queue.push({start_vertex, 0});
-    AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, INT_MAX);
-    atomic_dists[0].first = 0;
+    std::vector<QueueElement> vertexes;
+    vertexes.reserve(num_vertexes);
+    for (std::size_t i = 0; i < num_vertexes; i++) {
+        vertexes.emplace_back(i);
+    }
+    queue.push(&vertexes[0], 0);
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_dists), false);
-        #ifdef __linux__
-            cpu_set_t cpuset;
+        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes));
+#ifdef __linux__
+        cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
             CPU_SET(i, &cpuset);
             int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
             (void)rc;
-        #endif
+#endif
     }
     for (std::thread & thread : threads) {
         thread.join();
     }
-    DistVector dists = unwrap_vector_from_atomic(atomic_dists);
+    DistVector dists(num_vertexes);
+    for (std::size_t i = 0; i < num_vertexes; i++) {
+        dists[i] = vertexes[i].dist;
+    }
     return {dists};
 }
 
-SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex = 0) {
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph) {
+    const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
     std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<QueueElement> q;
-    dists[start_vertex] = 0;
-    q.push({start_vertex, 0});
+    dists[START_VERTEX] = 0;
+    q.emplace(START_VERTEX, 0);
     for (std::size_t i = 0; i < num_vertexes; i++) {
-        while (!q.empty() && removed_from_queue[q.top().get_vertex()]) {
+        while (!q.empty() && removed_from_queue[q.top().vertex]) {
             q.pop();
         }
         if (q.empty()) {
             break;
         }
-        Vertex from = q.top().get_vertex();
-        DistType dist = q.top().get_dist();
+        Vertex from = q.top().vertex;
+        DistType dist = q.top().dist;
         q.pop();
         removed_from_queue[from] = true;
         for (const Edge & edge: graph[from]) {
@@ -286,7 +254,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & gra
             DistType new_dist = dist + edge.get_weight();
             if (dists[to] > new_dist) {
                 dists[to] = new_dist;
-                q.push({to, new_dist});
+                q.emplace(to, new_dist);
             }
         }
     }

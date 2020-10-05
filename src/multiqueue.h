@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <atomic>
+#include <unordered_map>
+
+#include "binary_heap.h"
 
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
@@ -43,125 +46,65 @@ uint64_t random_fnv1a(uint64_t & seed) {
     return hash;
 }
 
-template <class T>
-class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
-{
-public:
-    explicit ReservablePriorityQueue(std::size_t reserve_size = 0) {
-        this->c.reserve(reserve_size);
-    }
-};
-
-template <class T>
-class LockablePriorityQueueWithEmptyElement {
-private:
-    ReservablePriorityQueue<T> queue;
-    T empty_element;
-    std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
-public:
-    LockablePriorityQueueWithEmptyElement() = default;
-    LockablePriorityQueueWithEmptyElement(std::size_t reserve_size, const T empty_element) :
-            queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {}
-
-    LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) :
-            queue(ReservablePriorityQueue<T>(512)), empty_element(o.empty_element) {}
-
-    LockablePriorityQueueWithEmptyElement & operator=(const LockablePriorityQueueWithEmptyElement & o) {
-        queue = o.queue;
-        empty_element = o.empty_element;
-        return *this;
-    }
-
-    void push(T value) {
-        queue.push(value);
-    }
-
-    const T & top() const {
-        if (queue.empty()) {
-            return empty_element;
-        }
-        return queue.top();
-    }
-
-    T pop() {
-        if (queue.empty()) {
-            return empty_element;
-        }
-        T elem = queue.top();
-        queue.pop();
-        return elem;
-    }
-
-    std::size_t size() const {
-        return queue.size();
-    }
-
-    void lock() {
-        while (spinlock.test_and_set(std::memory_order_acquire));
-    }
-
-    bool try_lock() {
-        while (spinlock.test_and_set(std::memory_order_acquire));
-        return true;
-    }
-
-    void unlock() {
-        spinlock.clear(std::memory_order_release);
-    }
-};
-
-template<class T>
 class Multiqueue {
 private:
-    std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<QUEUEPADDING<BinaryHeap>> queues;
     const std::size_t num_queues;
-//    QUEUEPADDING<std::atomic<std::size_t>> num_non_empty_queues;
-    const T empty_element;
     std::atomic<std::size_t> num_threads{0};
     std::atomic<std::size_t> num_pushes{0};
     std::vector<std::size_t> max_queue_sizes;
     const bool use_try_lock;
     const bool collect_statistics;
 
-    void push_lock(T value) {
-        std::size_t i = gen_random_queue_index();
-        auto &queue = queues[i].first;
-        queue.lock();
-//        if (queue.top() == empty_element) {
-//            num_non_empty_queues.first++;
-//        }
-        queue.push(value);
-//        if (collect_statistics) {
-//            max_queue_sizes[queue] = std::max(max_queue_sizes[queue], queue.size());
-//            num_pushes++;
-//        }
-        queue.unlock();
+    void push_lock(QueueElement * element, int new_dist) {
+        // we can change dist only once the corresponding binheap is locked
+        while (true) {
+            int EMPTY_Q_ID = -1;
+//            element->q_id.compare_exchange_strong(EMPTY_Q_ID, gen_random_queue_index());
+            int q_id = element->q_id;
+            bool adding = false;
+            if (q_id == EMPTY_Q_ID) {
+                adding = true;
+                q_id = gen_random_queue_index();
+            }
+            auto & queue = queues[q_id].first;
+            queue.lock();
+            // q_id could:
+            // 0) was -1, we generated random id
+            // 1) stay the same but dist might change (push)
+            // 2) become -1 (pop)
+            // 3) change to another queue id (pop, push)
+            if (element->q_id == q_id) {
+                if (adding) {
+                    queue.push(element);
+                } else if (new_dist < element->dist) {
+                    element->dist = new_dist;
+                    queue.decrease_key(element, new_dist);
+                }
+                queue.unlock();
+                break;
+            } else if (element->q_id == EMPTY_Q_ID) {
+                // someone poped the element, but since we already locked this queue, why not to push to the same queue
+                if (!element->q_id.compare_exchange_strong(EMPTY_Q_ID, q_id)) {
+                    queue.unlock();
+                    continue;
+                } else {
+                    if (new_dist < element->dist) {
+                        element->dist = new_dist;
+                        queue.push(element);
+                    }
+                    queue.unlock();
+                    break;
+                }
+            } else {
+                queue.unlock();
+                continue;
+            }
+        }
     }
 
-    void push_try_lock(T value) {
-        LockablePriorityQueueWithEmptyElement<T> * q_ptr;
-        std::size_t i;
-        do {
-            i = gen_random_queue_index();
-            q_ptr = &queues[i].first;
-        } while (!q_ptr->try_lock());
-        auto & q = *q_ptr;
-//        if (q.top() == empty_element) {
-//            num_non_empty_queues.first++;
-//        }
-        q.push(value);
-//        if (collect_statistics) {
-//            max_queue_sizes[i] = std::max(max_queue_sizes[i], q.size());
-//            num_pushes++;
-//        }
-        q.unlock();
-    }
-    T pop_lock() {
+    QueueElement * pop_lock() {
         for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
-//            if (num_non_empty_queues.first == 0) {
-//                return empty_element;
-//            }
-
             std::size_t i, j;
             i = gen_random_queue_index();
             do {
@@ -174,136 +117,69 @@ private:
             q1.lock();
             q2.lock();
 
-            T e1 = q1.top();
-            T e2 = q2.top();
+            QueueElement * e1 = q1.top();
+            QueueElement * e2 = q2.top();
 
-            if (e1 == empty_element && e2 == empty_element) {
+            if (*e1 == EMPTY_ELEMENT && *e2 == EMPTY_ELEMENT) {
                 q1.unlock();
                 q2.unlock();
                 continue;
             }
 
             // reversed comparator because std::priority_queue is a max queue
-            if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
+            if (*e1 == EMPTY_ELEMENT || (*e2 != EMPTY_ELEMENT && *e1 < *e2)) {
                 q1.unlock();
-                T e = q2.pop();
-//                if (q2.top() == empty_element) {
-//                    num_non_empty_queues.first--;
-//                }
+                q2.pop();
+                QueueElement * e = e2;
+                e->q_id = -1;
                 q2.unlock();
                 return e;
             } else {
                 q2.unlock();
-                T e = q1.pop();
-//                if (q1.top() == empty_element) {
-//                    num_non_empty_queues.first--;
-//                }
+                q1.pop();
+                QueueElement * e = e1;
+                e->q_id = -1;
                 q1.unlock();
                 return e;
             }
         }
-        return empty_element;
-    }
-
-    T pop_try_lock() {
-        while (true) {
-//            if (num_non_empty_queues.first == 0) {
-//                return empty_element;
-//            }
-
-            LockablePriorityQueueWithEmptyElement<T> * q1_ptr;
-            LockablePriorityQueueWithEmptyElement<T> * q2_ptr;
-            std::size_t i, j;
-            do {
-                do {
-                    i = gen_random_queue_index();
-                } while (i == num_queues - 1);
-                q1_ptr = &queues[i].first;
-            } while (!q1_ptr->try_lock());
-            do {
-                // lock in the increasing order to avoid the ABA problem
-                do {
-                    j = gen_random_queue_index();
-                } while (j <= i);
-                q2_ptr = &queues[j].first;
-            } while (!q2_ptr->try_lock());
-
-            auto & q1 = *q1_ptr;
-            auto & q2 = *q2_ptr;
-
-            T e1 = q1.top();
-            T e2 = q2.top();
-
-            if (e1 == empty_element && e2 == empty_element) {
-                q1.unlock();
-                q2.unlock();
-                continue;
-            }
-
-            LockablePriorityQueueWithEmptyElement<T> * q_ptr;
-            // reversed comparator because std::priority_queue is a max queue
-            if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
-                q1.unlock();
-                q_ptr = &q2;
-            } else {
-                q2.unlock();
-                q_ptr = &q1;
-            }
-            auto & q = *q_ptr;
-
-            T e = q.pop();
-//            if (q.top() == empty_element) {
-//                num_non_empty_queues.first--;
-//            }
-            q.unlock();
-            return e;
-        }
+        return (QueueElement *)&EMPTY_ELEMENT;
     }
 public:
-    Multiqueue(int num_threads, int size_multiple, T empty_element, std::size_t one_queue_reserve_size) :
-            num_queues(num_threads * size_multiple),
-            empty_element(empty_element), max_queue_sizes(num_queues, 0),
+    Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
+            num_queues(num_threads * size_multiple), max_queue_sizes(num_queues, 0),
             use_try_lock(false), collect_statistics(false) {
-//        num_non_empty_queues.first = 0;
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>> p;
-            p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
-            queues.emplace_back(p);
+            QUEUEPADDING<BinaryHeap> p;
+            p.first = BinaryHeap(one_queue_reserve_size);
+            queues.push_back(p);
         }
     }
     std::size_t gen_random_queue_index() {
         thread_local uint64_t seed = 2758756369U + num_threads++;
         return random_fnv1a(seed) % num_queues;
     }
-    void push(T value) {
+    void push(QueueElement * element, int new_dist) {
         if (num_queues == 1) {
             auto & q = queues.front().first;
             q.lock();
-            q.push(value);
+            q.push(element);
             q.unlock();
             return;
         }
-        if (use_try_lock) {
-            push_try_lock(value);
-        } else {
-            push_lock(value);
-        }
+        push_lock(element, new_dist);
     }
-    T pop() {
+    QueueElement * pop() {
         if (num_queues == 1) {
             auto & q = queues.front().first;
             q.lock();
-            T e = q.top();
+            QueueElement * e = q.top();
             q.pop();
             q.unlock();
             return e;
         }
-        if (use_try_lock)  {
-            return pop_try_lock();
-        } else {
-            return pop_lock();
-        }
+        return pop_lock();
     }
     std::size_t get_num_pushes() const {
         return num_pushes;
