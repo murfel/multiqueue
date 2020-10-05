@@ -14,8 +14,6 @@
 #include <cmath>
 
 #include "multiqueue.h"
-#include "binary_heap.h"
-
 
 #ifdef __linux__
 #include <pthread.h>

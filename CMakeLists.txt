@@ -8,10 +8,12 @@ add_subdirectory(benchmark)
 add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h)
 target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
+# TODO: test_multiqueue and test_dijkstra cause multiple definition of random_fnv1a (from multiqueue.h)
 set(TEST_SOURCES
         test/main.cpp
         test/test_binary_heap.cpp
-        test/test_dijkstra.cpp
+        test/test_multiqueue.cpp
+#        test/test_dijkstra.cpp
         )
 
 add_executable(all_test ${TEST_SOURCES})
