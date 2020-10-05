@@ -13,8 +13,6 @@
 #include <numeric>
 #include <cmath>
 
-#include <benchmark/benchmark.h>
-
 #include "multiqueue.h"
 #include "binary_heap.h"
 
