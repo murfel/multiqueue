@@ -4,6 +4,7 @@
 #include <atomic>
 #include <unordered_map>
 #include <vector>
+#include <limits>
 
 using Vertex = std::size_t;
 using DistType = int;
@@ -15,9 +16,8 @@ public:
     Vertex vertex;
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
-    explicit QueueElement(Vertex vertex = 0, DistType dist = INT_MAX) : vertex(vertex), dist(dist), q_id(-1) {}
-    explicit QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
-    explicit QueueElement(const QueueElement && o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
+    explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : vertex(vertex), dist(dist), q_id(-1) {}
+    QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
     QueueElement & operator=(const QueueElement & o) {
         if (this != &o) {
             q_id = -1;
