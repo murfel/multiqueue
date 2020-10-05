@@ -16,7 +16,8 @@ public:
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
     explicit QueueElement(Vertex vertex = 0, DistType dist = INT_MAX) : vertex(vertex), dist(dist), q_id(-1) {}
-    explicit QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist.load()), q_id(-1) {}
+    explicit QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
+    explicit QueueElement(const QueueElement && o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
     QueueElement & operator=(const QueueElement & o) {
         if (this != &o) {
             q_id = -1;
