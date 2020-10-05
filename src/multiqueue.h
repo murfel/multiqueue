@@ -32,42 +32,6 @@ struct not_padded {
     T first;
 };
 
-unsigned long xorshf96(unsigned long & x, unsigned long & y, unsigned long & z) { //period 2^96-1
-    unsigned long t;
-    x ^= x << 16;
-    x ^= x >> 5;
-    x ^= x << 1;
-
-    t = x;
-    x = y;
-    y = z;
-    z = t ^ x ^ y;
-
-    return z;
-}
-
-uint32_t xorshift32(uint32_t & x) {
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    return x;
-}
-
-uint32_t xorshift128(uint32_t & a, uint32_t & b, uint32_t & c, uint32_t & d)
-{
-    /* Algorithm "xor128" from p. 5 of Marsaglia, "Xorshift RNGs" */
-    uint32_t t = d;
-
-    uint32_t const s = a;
-    d = c;
-    c = b;
-    b = s;
-
-    t ^= t << 11;
-    t ^= t >> 8;
-    return a = t ^ s ^ (s >> 19);
-}
-
 uint64_t random_fnv1a(uint64_t & seed) {
     const static uint64_t offset = 14695981039346656037ULL;
     const static uint64_t prime = 1099511628211;
