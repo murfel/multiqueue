@@ -176,23 +176,6 @@ void thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, 
     }
 }
 
-AtomicDistVector initialize_atomic_vector(std::size_t n, DistType x) {
-    AtomicDistVector atomic_vector(n);
-    for (auto & atomic_element : atomic_vector) {
-        atomic_element.first = x;
-    }
-    return atomic_vector;
-}
-
-std::vector<DistType> unwrap_vector_from_atomic(const AtomicDistVector & atomic_vector) {
-    std::vector<DistType> regular_vector;
-    regular_vector.reserve(atomic_vector.size());
-    for (const auto & atomic_element : atomic_vector) {
-        regular_vector.push_back(atomic_element.first);
-    }
-    return regular_vector;
-}
-
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   const QueueFactory & queue_factory) {
     const Vertex START_VERTEX = 0;
