@@ -187,7 +187,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     for (std::size_t i = 0; i < num_vertexes; i++) {
         vertexes.emplace_back(i);
     }
-    queue.push(&vertexes[0], 0);
+    queue.push(&vertexes[START_VERTEX], 0);
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes));
