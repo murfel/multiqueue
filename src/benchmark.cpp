@@ -146,7 +146,7 @@ void check(std::vector<BindedImpl> impls) {
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
-        std::cerr << impl_name << " elapsed time: " << time_ms.count() << " ms" << std::endl;
+        std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
         const DistVector &dists = dists_and_statistics.get_dists();
 
         bool mismatched = false;
@@ -159,7 +159,7 @@ void check(std::vector<BindedImpl> impls) {
         if (mismatched) {
             std::ofstream output(impl_name + ".out" + std::to_string(i));
             std::chrono::milliseconds elapsed = measure_time([&output, &dists]() { write_answer(output, dists); });
-            std::cerr << "Writing elapsed time: " << elapsed.count() << " s" << std::endl;
+            std::cerr << "Writing: " << elapsed.count() << " s" << std::endl;
         }
     }
 }
