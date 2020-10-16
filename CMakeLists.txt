@@ -13,7 +13,7 @@ set(TEST_SOURCES
         test/main.cpp
         test/test_binary_heap.cpp
         test/test_multiqueue.cpp
-#        test/test_dijkstra.cpp
+        test/test_dijkstra.cpp
         )
 
 add_executable(all_test ${TEST_SOURCES})
