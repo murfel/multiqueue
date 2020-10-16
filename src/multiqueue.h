@@ -54,11 +54,11 @@ private:
     std::atomic<std::size_t> num_pushes{0};
     std::vector<std::size_t> max_queue_sizes;
 
+    // element->dist should be > new_dist, otherwise nothing happens
     void push_lock(QueueElement * element, int new_dist) {
         // we can change dist only once the corresponding binheap is locked
         while (true) {
             int EMPTY_Q_ID = -1;
-//            element->q_id.compare_exchange_strong(EMPTY_Q_ID, gen_random_queue_index());
             int q_id = element->q_id;
             bool adding = false;
             if (q_id == EMPTY_Q_ID) {
@@ -69,32 +69,34 @@ private:
             queue.lock();
             // q_id could:
             // 0) was -1, we generated random id
-            // 1) stay the same but dist might change (push)
+            // 1) stay the same but dist might or might not change (push OR none)
             // 2) become -1 (pop)
             // 3) change to another queue id (pop, push)
-            if (element->q_id == q_id) {
-                if (adding) {
-                    queue.push(element);
-                } else if (new_dist < element->dist) {
+            if (element->q_id == q_id) { // 1
+                if (new_dist < element->dist) {
                     element->dist = new_dist;
                     queue.decrease_key(element, new_dist);
                 }
                 queue.unlock();
                 break;
-            } else if (element->q_id == EMPTY_Q_ID) {
-                // someone poped the element, but since we already locked this queue, why not to push to the same queue
-                if (!element->q_id.compare_exchange_strong(EMPTY_Q_ID, q_id)) {
+            } else if (adding or element->q_id == EMPTY_Q_ID) {
+                // 0, aka element->q_id was EMPTY_ID;
+                // OR 2, aka someone popped the element, but since we already locked this queue, push to it
+                element->empty_q_id_lock.lock();
+                if (element->q_id != EMPTY_Q_ID) {
+                    element->empty_q_id_lock.unlock();
                     queue.unlock();
                     continue;
-                } else {
-                    if (new_dist < element->dist) {
-                        element->dist = new_dist;
-                        queue.push(element);
-                    }
-                    queue.unlock();
-                    break;
                 }
-            } else {
+                if (new_dist < element->dist) {
+                    element->dist = new_dist;
+                    queue.push(element);
+                    element->q_id = q_id;
+                }
+                element->empty_q_id_lock.unlock();
+                queue.unlock();
+                break;
+            } else {  // 3
                 queue.unlock();
                 continue;
             }

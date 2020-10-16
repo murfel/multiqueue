@@ -26,16 +26,15 @@ private:
     volatile char padding[128]{};
 public:
     Vertex vertex;
-    std::atomic<DistType> dist;
-    std::atomic<int> q_id;
+    DistType dist; // todo: ideally we want to wrap dist and q_id with a visibility barrier
+    int q_id;
+    Spinlock empty_q_id_lock;  // lock when changing q_id from empty to something
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : vertex(vertex), dist(dist), q_id(-1) {}
-    QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist.load()), q_id(o.q_id.load()) {}
+    QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist), q_id(o.q_id) {}
     QueueElement & operator=(const QueueElement & o) {
-        if (this != &o) {
-            q_id = -1;
-            dist.store(o.dist);
-            vertex = o.vertex;
-        }
+        vertex = o.vertex;
+        dist = o.dist;
+        q_id = o.q_id;
         return *this;
     }
     bool operator==(const QueueElement & o) const {
