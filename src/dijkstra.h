@@ -1,3 +1,6 @@
+#ifndef MULTIQUEUE_DIJKSTRA_H
+#define MULTIQUEUE_DIJKSTRA_H
+
 #include <iostream>
 #include <random>
 #include <thread>
@@ -227,3 +230,5 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & gra
     }
     return {dists};
 }
+
+#endif //MULTIQUEUE_DIJKSTRA_H
