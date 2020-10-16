@@ -6,6 +6,18 @@
 #include <vector>
 #include <limits>
 
+class Spinlock {
+private:
+    std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
+public:
+    void lock() {
+        while (spinlock.test_and_set(std::memory_order_acquire));
+    }
+    void unlock() {
+        spinlock.clear(std::memory_order_release);
+    }
+};
+
 using Vertex = std::size_t;
 using DistType = int;
 
@@ -47,7 +59,7 @@ class BinaryHeap {
 private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
-    std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
+    Spinlock spinlock;
     std::unordered_map<QueueElement *, size_t> element_to_index{};
 
     void swap(size_t i, size_t j) {
@@ -124,10 +136,10 @@ public:
         sift_up(i);
     }
     void lock() {
-        while (spinlock.test_and_set(std::memory_order_acquire));
+        spinlock.lock();
     }
     void unlock() {
-        spinlock.clear(std::memory_order_release);
+        spinlock.unlock();
     }
 };
 
