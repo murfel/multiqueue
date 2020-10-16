@@ -53,8 +53,6 @@ private:
     std::atomic<std::size_t> num_threads{0};
     std::atomic<std::size_t> num_pushes{0};
     std::vector<std::size_t> max_queue_sizes;
-    const bool use_try_lock;
-    const bool collect_statistics;
 
     void push_lock(QueueElement * element, int new_dist) {
         // we can change dist only once the corresponding binheap is locked
@@ -147,8 +145,7 @@ private:
     }
 public:
     Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
-            num_queues(num_threads * size_multiple), max_queue_sizes(num_queues, 0),
-            use_try_lock(false), collect_statistics(false) {
+            num_queues(num_threads * size_multiple), max_queue_sizes(num_queues, 0) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             QUEUEPADDING<BinaryHeap> p;
