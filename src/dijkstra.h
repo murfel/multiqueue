@@ -142,7 +142,7 @@ public:
     }
 };
 
-void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes) {
+inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes) {
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
@@ -167,7 +167,7 @@ void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> 
     }
 }
 
-SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
+inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   const QueueFactory & queue_factory) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
@@ -200,7 +200,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     return {dists};
 }
 
-SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph) {
+inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
