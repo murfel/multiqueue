@@ -47,12 +47,6 @@ template <class T>
 class AbstractQueue {
 public:
     virtual void push(T * element, DistType new_dist) = 0;
-    virtual std::size_t get_num_pushes() {
-        return 0;
-    }
-    virtual std::vector<std::size_t> get_max_queue_sizes() {
-        return std::vector<std::size_t>();
-    }
     virtual T * pop() = 0;
     virtual ~AbstractQueue() = default;
 };
@@ -109,12 +103,6 @@ public:
             queue(num_threads, size_multiple, one_queue_reserve_size) {}
     void push(QueueElement * element, DistType new_dist) override {
         queue.push(element, new_dist);
-    }
-    std::size_t get_num_pushes() override {
-        return queue.get_num_pushes();
-    }
-    std::vector<std::size_t> get_max_queue_sizes() override {
-        return queue.get_max_queue_sizes();
     }
     QueueElement * pop() override {
         return queue.pop();

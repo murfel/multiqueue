@@ -147,7 +147,7 @@ private:
     }
 public:
     Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
-            num_queues(num_threads * size_multiple), max_queue_sizes(num_queues, 0) {
+            num_queues(num_threads * size_multiple) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
             QUEUEPADDING<BinaryHeap> p;
@@ -179,12 +179,6 @@ public:
             return e;
         }
         return pop_lock();
-    }
-    std::size_t get_num_pushes() const {
-        return num_pushes;
-    }
-    const std::vector<std::size_t> & get_max_queue_sizes() const {
-        return max_queue_sizes;
     }
 };
 
