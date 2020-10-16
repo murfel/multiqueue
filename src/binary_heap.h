@@ -50,6 +50,12 @@ public:
     bool operator>(const QueueElement & o) const {
         return dist < o.dist;
     }
+    bool operator<=(const QueueElement & o) const {
+        return dist >= o.dist;
+    }
+    bool operator>=(const QueueElement & o) const {
+        return dist <= o.dist;
+    }
 };
 
 static const DistType EMPTY_ELEMENT_DIST = -1;
