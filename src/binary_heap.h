@@ -136,6 +136,8 @@ public:
     void decrease_key(QueueElement * element, int new_dist) {
         if (new_dist < element->dist) { // redundant if?
             element->dist = new_dist;
+            size_t i = element_to_index[element];
+            sift_up(i);
         }
         size_t i = element_to_index[element];
         sift_up(i);
