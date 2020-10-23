@@ -160,20 +160,18 @@ public:
         return random_fnv1a(seed) % num_queues;
     }
     void push(QueueElement * element, int new_dist) {
-        if (num_queues == 1) {
-            auto & q = queues.front().first;
-            q.lock();
-            q.push(element);
-            q.unlock();
-            return;
-        }
         push_lock(element, new_dist);
     }
     QueueElement * pop() {
         if (num_queues == 1) {
             auto & q = queues.front().first;
             q.lock();
+            if (q.empty()) {
+                q.unlock();
+                return const_cast<QueueElement *>(&EMPTY_ELEMENT);
+            }
             QueueElement * e = q.top();
+            e->q_id = -1;
             q.pop();
             q.unlock();
             return e;
