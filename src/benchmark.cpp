@@ -7,13 +7,14 @@ using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics()>, st
 
 class Config {
 public:
+    enum RunType { run, check, benchmark };
     Config(const std::vector<std::pair<int, int>> &params, const AdjList &graph, size_t one_queue_reserve_size,
-           bool check, bool run_seq) : params(params), graph(graph), one_queue_reserve_size(one_queue_reserve_size),
-                                       check(check), run_seq(run_seq || check) {}
+           RunType run_type, bool run_seq) : params(params), graph(graph), one_queue_reserve_size(one_queue_reserve_size),
+                                       run_type(run_type), run_seq(run_seq || run_type == check) {}
     std::vector<std::pair<int, int>> params;
     AdjList graph;
     std::size_t one_queue_reserve_size;
-    bool check;
+    RunType run_type;
     bool run_seq;
 };
 
@@ -75,7 +76,7 @@ AdjList read_input(std::string filename) {
 Config process_input(int argc, char** argv) {
     if (argc != 6) {
         std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size run_seq[0,1] "
-                     "check[0,1]"
+                     "[run|check]"
                   << std::endl;
         exit(1);
     }
@@ -83,11 +84,18 @@ Config process_input(int argc, char** argv) {
     const std::string params_filename(argv[2]);
     const std::size_t one_queue_reserve_size = std::stoul(argv[3]);
     const bool run_seq = std::stoi(argv[4]);
-    const bool check = std::stoi(argv[5]);
+    Config::RunType run_type;
+    if (strcmp("run", argv[5]) == 0) {
+        run_type = Config::run;
+    } else if (strcmp("check", argv[5]) == 0) {
+        run_type = Config::check;
+    } else {
+        run_type = Config::benchmark;
+    }
 
     std::vector<std::pair<int, int>> params = read_params(params_filename);
     AdjList graph = read_input(input_filename);
-    return Config(params, graph, one_queue_reserve_size, check, run_seq);
+    return Config(params, graph, one_queue_reserve_size, run_type, run_seq);
 }
 
 std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params, bool run_seq,
@@ -135,8 +143,20 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
     ostream << '\n';
 }
 
+void run(std::vector<BindedImpl> impls) {
+    for (std::size_t i = 0; i < impls.size(); i++) {
+        const auto & f = impls[i].first;
+        const auto & impl_name = impls[i].second;
+
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>(f);
+        auto time_ms = p.second;
+
+        std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
+    }
+}
+
 /* The first implementation should be the reference implementation (sequential). */
-void check(std::vector<BindedImpl> impls) {
+void run_and_check(std::vector<BindedImpl> impls) {
     DistVector correct_answer;
     for (std::size_t i = 0; i < impls.size(); i++) {
         const auto & f = impls[i].first;
@@ -168,8 +188,10 @@ int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
     auto impls = create_impls(config.params, config.run_seq, config.one_queue_reserve_size);
     auto binded_impls = bind_impls(impls, config.graph);
-    if (config.check) {
-        check(binded_impls);
+    if (config.run_type == Config::run) {
+        run(binded_impls);
+    } else if (config.run_type == Config::check) {
+        run_and_check(binded_impls);
     } else {
         for (const auto & impl : binded_impls) {
             benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond);
