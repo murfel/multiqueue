@@ -28,6 +28,7 @@ public:
     Vertex vertex;
     DistType dist; // todo: ideally we want to wrap dist and q_id with a visibility barrier
     int q_id;
+    size_t index;
     Spinlock empty_q_id_lock;  // lock when changing q_id from empty to something
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : vertex(vertex), dist(dist), q_id(-1) {}
     QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist), q_id(o.q_id) {}
@@ -65,14 +66,12 @@ private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
     Spinlock spinlock;
-    std::unordered_map<QueueElement *, size_t> element_to_index{};
+//    std::unordered_map<QueueElement *, size_t> element_to_index{};
 
     void swap(size_t i, size_t j) {
-        QueueElement * t = elements[i];
-        elements[i] = elements[j];
-        elements[j] = t;
-        element_to_index[elements[i]] = i;
-        element_to_index[elements[j]] = j;
+        std::swap(elements[i], elements[j]);
+        elements[i]->index = i;
+        elements[j]->index = j;
     }
     void sift_up(size_t i) {
         if (size <= 1) return;
@@ -102,14 +101,12 @@ private:
 public:
     explicit BinaryHeap(size_t reserve_size = 256) {
         elements.reserve(reserve_size);
-        element_to_index.reserve(reserve_size);
         elements.resize(1);
     }
     BinaryHeap(const BinaryHeap & o) : elements(std::vector<QueueElement *>(o.elements.capacity())) {}
     BinaryHeap& operator=(const BinaryHeap & o) {
         std::size_t reserve_size = o.elements.capacity();
         elements.reserve(reserve_size);
-        element_to_index.reserve(reserve_size);
         return *this;
     }
     bool empty() const {
@@ -120,9 +117,9 @@ public:
     }
     void pop() {
         --size;
-        element_to_index.erase(element_to_index.find(elements[0]));
+        elements[0]->index = -1;
         elements[0] = elements[size];
-        element_to_index[elements[0]] = 0;
+        elements[0]->index = 0;
         sift_down(0);
     }
     void push(QueueElement * element) {
@@ -131,13 +128,13 @@ public:
             elements.resize(elements.size() * 4);
         }
         elements[size - 1] = element;
-        element_to_index[element] = size - 1;
+        elements[size - 1]->index = size - 1;
         sift_up(size - 1);
     }
     void decrease_key(QueueElement * element, int new_dist) {
         if (new_dist < element->dist) { // redundant if?
             element->dist = new_dist;
-            size_t i = element_to_index[element];
+            size_t i = element->index;
             sift_up(i);
         }
     }
