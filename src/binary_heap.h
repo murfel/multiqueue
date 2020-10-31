@@ -119,8 +119,9 @@ public:
         return empty() ? (QueueElement *)&EMPTY_ELEMENT : elements.front();
     }
     void pop() {
+        --size;
         element_to_index.erase(element_to_index.find(elements[0]));
-        elements[0] = elements[--size];
+        elements[0] = elements[size];
         element_to_index[elements[0]] = 0;
         sift_down(0);
     }

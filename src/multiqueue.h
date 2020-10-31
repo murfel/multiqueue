@@ -104,46 +104,54 @@ private:
     }
 
     QueueElement * pop_lock() {
-        for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
-            std::size_t i, j;
-            i = gen_random_queue_index();
-            do {
-                j = gen_random_queue_index();
-            } while (i == j);
+        while (true) {
+            bool seen_progress_by_other_threads = false;
+            for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
+                std::size_t i, j;
+                i = gen_random_queue_index();
+                do {
+                    j = gen_random_queue_index();
+                } while (i == j);
 
-            auto & q1 = queues[std::min(i, j)].first;
-            auto & q2 = queues[std::max(i, j)].first;
+                auto &q1 = queues[std::min(i, j)].first;
+                auto &q2 = queues[std::max(i, j)].first;
 
-            q1.lock();
-            q2.lock();
+                QueueElement *e1 = q1.top();
+                QueueElement *e2 = q2.top();
 
-            QueueElement * e1 = q1.top();
-            QueueElement * e2 = q2.top();
+                if (e1 == nullptr || e2 == nullptr) {
+                    seen_progress_by_other_threads = true;
+                    break;
+                }
 
-            if (*e1 == EMPTY_ELEMENT && *e2 == EMPTY_ELEMENT) {
-                q1.unlock();
-                q2.unlock();
+                if (*e1 == EMPTY_ELEMENT && *e2 == EMPTY_ELEMENT) {
+                    continue;
+                }
+
+                auto * q_ptr = &q1;
+                QueueElement *e = e1;
+                // reversed comparator because std::priority_queue is a max queue
+                if (*e1 == EMPTY_ELEMENT || (*e2 != EMPTY_ELEMENT && *e1 < *e2)) {
+                    q_ptr = &q2;
+                    e = e2;
+                }
+                auto & q = *q_ptr;
+                q.lock();
+                if (q.top() != e) {
+                    q.unlock();
+                    seen_progress_by_other_threads = true;
+                    break;
+                }
+                q.pop();
+                e->q_id = -1;
+                q.unlock();
+                return e;
+            }
+            if (seen_progress_by_other_threads) {
                 continue;
             }
-
-            // reversed comparator because std::priority_queue is a max queue
-            if (*e1 == EMPTY_ELEMENT || (*e2 != EMPTY_ELEMENT && *e1 < *e2)) {
-                q1.unlock();
-                q2.pop();
-                QueueElement * e = e2;
-                e->q_id = -1;
-                q2.unlock();
-                return e;
-            } else {
-                q2.unlock();
-                q1.pop();
-                QueueElement * e = e1;
-                e->q_id = -1;
-                q1.unlock();
-                return e;
-            }
+            return (QueueElement *) &EMPTY_ELEMENT;
         }
-        return (QueueElement *)&EMPTY_ELEMENT;
     }
 public:
     Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
