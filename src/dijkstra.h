@@ -199,12 +199,22 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     return {dists};
 }
 
+class SimpleQueueElement {
+public:
+    SimpleQueueElement(Vertex vertex, DistType dist) : vertex(vertex), dist(dist) {}
+    Vertex vertex;
+    DistType dist;
+    bool operator<(const SimpleQueueElement & o) const {
+        return dist > o.dist;
+    }
+};
+
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
     std::vector<bool> removed_from_queue(num_vertexes, false);
-    std::priority_queue<QueueElement> q;
+    std::priority_queue<SimpleQueueElement> q;
     dists[START_VERTEX] = 0;
     q.emplace(START_VERTEX, 0);
     for (std::size_t i = 0; i < num_vertexes; i++) {
