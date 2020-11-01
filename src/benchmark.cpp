@@ -200,7 +200,8 @@ int main(int argc, char** argv) {
         run_and_check(binded_impls);
     } else {
         for (const auto & impl : binded_impls) {
-            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond);
+            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond)
+                    ->MeasureProcessCPUTime()->UseRealTime();
         }
         int pseudo_argc = 1;
         benchmark::Initialize(&pseudo_argc, argv);
