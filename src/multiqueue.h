@@ -50,9 +50,24 @@ class Multiqueue {
 private:
     std::vector<QUEUEPADDING<BinaryHeap>> queues;
     const std::size_t num_queues;
+public:
+    Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
+            num_queues(num_threads * size_multiple) {
+        queues.reserve(num_queues);
+        for (std::size_t i = 0; i < num_queues; i++) {
+            QUEUEPADDING<BinaryHeap> p;
+            p.first = BinaryHeap(one_queue_reserve_size);
+            queues.push_back(p);
+        }
+    }
+    std::size_t gen_random_queue_index() {
+        static std::atomic<size_t> num_threads_registered{0};
+        thread_local uint64_t seed = 2758756369U + num_threads_registered++;
+        return random_fnv1a(seed) % num_queues;
+    }
 
     // element->dist should be > new_dist, otherwise nothing happens
-    void push_lock(QueueElement * element, int new_dist) {
+    void push(QueueElement * element, int new_dist) {
         // we can change dist only once the corresponding binheap is locked
         while (true) {
             int EMPTY_Q_ID = -1;
@@ -100,7 +115,21 @@ private:
         }
     }
 
-    QueueElement * pop_lock() {
+    QueueElement * pop() {
+        if (num_queues == 1) {
+            auto & q = queues.front().first;
+            q.lock();
+            if (q.empty()) {
+                q.unlock();
+                return const_cast<QueueElement *>(&EMPTY_ELEMENT);
+            }
+            QueueElement * e = q.top();
+            e->q_id = -1;
+            q.pop();
+            q.unlock();
+            return e;
+        }
+
         while (true) {
             bool seen_progress_by_other_threads = false;
             for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
@@ -149,40 +178,6 @@ private:
             }
             return (QueueElement *) &EMPTY_ELEMENT;
         }
-    }
-public:
-    Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
-            num_queues(num_threads * size_multiple) {
-        queues.reserve(num_queues);
-        for (std::size_t i = 0; i < num_queues; i++) {
-            QUEUEPADDING<BinaryHeap> p;
-            p.first = BinaryHeap(one_queue_reserve_size);
-            queues.push_back(p);
-        }
-    }
-    std::size_t gen_random_queue_index() {
-        static std::atomic<size_t> num_threads_registered{0};
-        thread_local uint64_t seed = 2758756369U + num_threads_registered++;
-        return random_fnv1a(seed) % num_queues;
-    }
-    void push(QueueElement * element, int new_dist) {
-        push_lock(element, new_dist);
-    }
-    QueueElement * pop() {
-        if (num_queues == 1) {
-            auto & q = queues.front().first;
-            q.lock();
-            if (q.empty()) {
-                q.unlock();
-                return const_cast<QueueElement *>(&EMPTY_ELEMENT);
-            }
-            QueueElement * e = q.top();
-            e->q_id = -1;
-            q.pop();
-            q.unlock();
-            return e;
-        }
-        return pop_lock();
     }
 };
 
