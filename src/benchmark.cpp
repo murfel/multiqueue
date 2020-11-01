@@ -88,7 +88,7 @@ Config process_input(int argc, char** argv) {
     const std::string params_filename(argv[2]);
     const std::size_t one_queue_reserve_size = std::stoul(argv[3]);
     const bool run_seq = std::stoi(argv[4]);
-    Config::RunType run_type;
+    Config::RunType run_type = Config::run;
     if (strcmp("run", argv[5]) == 0) {
         run_type = Config::run;
     } else if (strcmp("check", argv[5]) == 0) {
