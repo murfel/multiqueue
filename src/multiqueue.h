@@ -51,8 +51,6 @@ private:
     std::vector<QUEUEPADDING<BinaryHeap>> queues;
     const std::size_t num_queues;
     std::atomic<std::size_t> num_threads{0};
-    std::atomic<std::size_t> num_pushes{0};
-    std::vector<std::size_t> max_queue_sizes;
 
     // element->dist should be > new_dist, otherwise nothing happens
     void push_lock(QueueElement * element, int new_dist) {
