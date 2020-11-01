@@ -23,7 +23,7 @@ using DistType = int;
 
 class QueueElement {
 private:
-    volatile char padding[128]{};
+//    volatile char padding[128]{};
 public:
     Vertex vertex;
     DistType dist; // todo: ideally we want to wrap dist and q_id with a visibility barrier
