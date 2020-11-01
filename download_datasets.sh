@@ -11,7 +11,7 @@ function download {
 #cat rome99.gr | sed -e '/^c/d' | cut -c 3- | tail -c +4 > rome.in
 #rm rome99.gr
 
-for NAME in NY BAY COL FLA NW NE CAL LKS E W CTR USA
+for NAME in NY USA  # BAY COL FLA NW NE CAL LKS E W CTR
 do
   download $NAME
 done

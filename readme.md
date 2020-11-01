@@ -32,7 +32,7 @@ Run a benchmark:
 This runs a parallel Dijkstra from the vertex 0 for each parameter line within Google Benchmark. Each Dijkstra instance is run multiple times to calculate statistically plausible average running time. (The number of runs is determined by Google Benchmark).
 
 
-The 1st argument, `NY` (N=300K,M=700K), is the smallest dataset which is loaded in 600 ms and for which the sequential Dijkstra runs 35 ms on my laptop. `USA` is the biggest dataset (N=23M, M=58M) which is loaded in 15 s and for which the sequential Dijkstra runs 5 s on a super-pupper server with lots of memory and a decent CPU. All available datasets are: `NY BAY COL FLA NW NE CAL LKS E W CTR USA`.
+The 1st argument, `NY` (N=300K,M=700K), is the smallest dataset which is loaded in 600 ms and for which the sequential Dijkstra runs 35 ms on my laptop. `USA` is the biggest dataset (N=23M, M=58M) which is loaded in 15 s and for which the sequential Dijkstra runs 5 s on a super-pupper server with lots of memory and a decent CPU. All available datasets are: `NY BAY COL FLA NW NE CAL LKS E W CTR USA` (uncomment them in `download_datasets.sh`).
 If you don't need to run the sequential Dijkstra, use `0` instead of `1` in the 4th argument.
 
 To make just one timed run for each parameter line, use `run`:
