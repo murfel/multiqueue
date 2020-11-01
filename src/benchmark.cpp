@@ -73,12 +73,16 @@ AdjList read_input(std::string filename) {
     return p.first;
 }
 
+void print_usage_error_and_exit() {
+    std::cerr << "Usage: ./mq input_filename_no_ext params_filename one_queue_reserve_size run_seq[0,1] "
+                 "[run|check|benchmark]"
+              << std::endl;
+    exit(1);
+}
+
 Config process_input(int argc, char** argv) {
     if (argc != 6) {
-        std::cerr << "Usage: ./dijkstra input_filename_no_ext params_filename one_queue_reserve_size run_seq[0,1] "
-                     "[run|check]"
-                  << std::endl;
-        exit(1);
+        print_usage_error_and_exit();
     }
     const std::string input_filename(argv[1]);
     const std::string params_filename(argv[2]);
@@ -89,8 +93,10 @@ Config process_input(int argc, char** argv) {
         run_type = Config::run;
     } else if (strcmp("check", argv[5]) == 0) {
         run_type = Config::check;
-    } else {
+    } else if (strcmp("benchmark", argv[5]) == 0) {
         run_type = Config::benchmark;
+    } else {
+        print_usage_error_and_exit();
     }
 
     std::vector<std::pair<int, int>> params = read_params(params_filename);

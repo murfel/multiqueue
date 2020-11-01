@@ -24,7 +24,6 @@
 #endif
 
 using DistVector = std::vector<DistType>;
-using AtomicDistVector = std::vector<DISTPADDING<std::atomic<DistType>>>;
 
 class Edge {
 private:
