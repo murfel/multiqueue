@@ -176,7 +176,7 @@ public:
             if (seen_progress_by_other_threads) {
                 continue;
             }
-            return (QueueElement *) &EMPTY_ELEMENT;
+            return const_cast<QueueElement *>(&EMPTY_ELEMENT);
         }
     }
 };
