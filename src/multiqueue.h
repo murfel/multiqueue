@@ -50,7 +50,6 @@ class Multiqueue {
 private:
     std::vector<QUEUEPADDING<BinaryHeap>> queues;
     const std::size_t num_queues;
-    std::atomic<std::size_t> num_threads{0};
 
     // element->dist should be > new_dist, otherwise nothing happens
     void push_lock(QueueElement * element, int new_dist) {
@@ -162,7 +161,8 @@ public:
         }
     }
     std::size_t gen_random_queue_index() {
-        thread_local uint64_t seed = 2758756369U + num_threads++;
+        static std::atomic<size_t> num_threads_registered{0};
+        thread_local uint64_t seed = 2758756369U + num_threads_registered++;
         return random_fnv1a(seed) % num_queues;
     }
     void push(QueueElement * element, int new_dist) {
