@@ -86,7 +86,6 @@ public:
             // 3) change to another queue id (pop, push)
             if (element->q_id == q_id) { // 1
                 if (new_dist < element->dist) {
-                    element->dist = new_dist;
                     queue.decrease_key(element, new_dist);
                 }
                 queue.unlock();
