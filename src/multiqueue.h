@@ -71,7 +71,7 @@ public:
         // we can change dist only once the corresponding binheap is locked
         while (true) {
             int EMPTY_Q_ID = -1;
-            int q_id = element->q_id;
+            int q_id = element->get_q_id();
             bool adding = false;
             if (q_id == EMPTY_Q_ID) {
                 adding = true;
@@ -84,25 +84,25 @@ public:
             // 1) stay the same but dist might or might not change (push OR none)
             // 2) become -1 (pop)
             // 3) change to another queue id (pop, push)
-            if (element->q_id == q_id) { // 1
-                if (new_dist < element->dist) {
+            if (element->get_q_id() == q_id) { // 1
+                if (new_dist < element->get_dist()) {
                     queue.decrease_key(element, new_dist);
                 }
                 queue.unlock();
                 break;
-            } else if (adding or element->q_id == EMPTY_Q_ID) {
+            } else if (adding or element->get_q_id() == EMPTY_Q_ID) {
                 // 0, aka element->q_id was EMPTY_ID;
                 // OR 2, aka someone popped the element, but since we already locked this queue, push to it
                 element->empty_q_id_lock.lock();
-                if (element->q_id != EMPTY_Q_ID) {
+                if (element->get_q_id() != EMPTY_Q_ID) {
                     element->empty_q_id_lock.unlock();
                     queue.unlock();
                     continue;
                 }
-                if (new_dist < element->dist) {
-                    element->dist = new_dist;
+                if (new_dist < element->get_dist()) {
+                    element->set_dist(new_dist);
                     queue.push(element);
-                    element->q_id = q_id;
+                    element->set_q_id(q_id);
                 }
                 element->empty_q_id_lock.unlock();
                 queue.unlock();
@@ -123,7 +123,7 @@ public:
                 return const_cast<QueueElement *>(&EMPTY_ELEMENT);
             }
             QueueElement * e = q.top();
-            e->q_id = -1;
+            e->set_q_id(-1);
             q.pop();
             q.unlock();
             return e;
@@ -168,7 +168,7 @@ public:
                     break;
                 }
                 q.pop();
-                e->q_id = -1;
+                e->set_q_id(-1);
                 q.unlock();
                 return e;
             }

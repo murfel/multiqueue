@@ -24,37 +24,49 @@ using DistType = int;
 class QueueElement {
 private:
 //    volatile char padding[128]{};
+    std::atomic<DistType> dist;
+    std::atomic<int> q_id;
 public:
-    Vertex vertex;
-    DistType dist; // todo: ideally we want to wrap dist and q_id with a visibility barrier
-    int q_id;
     size_t index;
+    Vertex vertex;
     Spinlock empty_q_id_lock;  // lock when changing q_id from empty to something
-    explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : vertex(vertex), dist(dist), q_id(-1) {}
-    QueueElement(const QueueElement & o) : vertex(o.vertex), dist(o.dist), q_id(o.q_id) {}
+    explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
+    QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
     QueueElement & operator=(const QueueElement & o) {
         vertex = o.vertex;
-        dist = o.dist;
-        q_id = o.q_id;
+        dist = o.get_dist();
+        q_id = o.get_q_id();
         return *this;
     }
+    DistType get_dist() const {
+        return dist.load(std::memory_order_relaxed);
+    }
+    void set_dist(DistType new_dist) {
+        dist.store(new_dist, std::memory_order_relaxed);
+    }
+    int get_q_id() const {
+        return q_id.load(std::memory_order_relaxed);
+    }
+    void set_q_id(int new_q_id) {
+        q_id.store(new_q_id, std::memory_order_relaxed);
+    }
     bool operator==(const QueueElement & o) const {
-        return o.vertex == vertex && o.dist == dist;
+        return o.vertex == vertex && o.get_dist() == get_dist();
     }
     bool operator!=(const QueueElement & o) const {
         return !operator==(o);
     }
     bool operator<(const QueueElement & o) const {
-        return dist > o.dist;
+        return get_dist() > o.get_dist();
     }
     bool operator>(const QueueElement & o) const {
-        return dist < o.dist;
+        return get_dist() < o.get_dist();
     }
     bool operator<=(const QueueElement & o) const {
-        return dist >= o.dist;
+        return get_dist() >= o.get_dist();
     }
     bool operator>=(const QueueElement & o) const {
-        return dist <= o.dist;
+        return get_dist() <= o.get_dist();
     }
 };
 
@@ -132,8 +144,8 @@ public:
         sift_up(size - 1);
     }
     void decrease_key(QueueElement * element, int new_dist) {
-        if (new_dist < element->dist) { // redundant if?
-            element->dist = new_dist;
+        if (new_dist < element->get_dist()) { // redundant if?
+            element->set_dist(new_dist);
             size_t i = element->index;
             sift_up(i);
         }

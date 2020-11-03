@@ -145,18 +145,17 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
-        if (elem->dist == EMPTY_ELEMENT_DIST) {
+        if (elem->get_dist() == EMPTY_ELEMENT_DIST) {
 //            std::cerr << "bye" << std::endl;
             break;
         }
         const Vertex v = elem->vertex;
-        const DistType & v_dist = elem->dist;
         for (Edge e : graph[v]) {
             Vertex v2 = e.get_to();
             if (v == v2) continue;
             while (true) {
-                DistType new_v2_dist = v_dist + e.get_weight();
-                DistType old_v2_dist = vertexes[v2].dist;
+                DistType new_v2_dist = elem->get_dist() + e.get_weight();
+                DistType old_v2_dist = vertexes[v2].get_dist();
                 if (old_v2_dist <= new_v2_dist) {
                     break;
                 }
@@ -194,7 +193,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     }
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
-        dists[i] = vertexes[i].dist;
+        dists[i] = vertexes[i].get_dist();
     }
     return {dists};
 }
