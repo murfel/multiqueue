@@ -78,7 +78,6 @@ private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
     Spinlock spinlock;
-//    std::unordered_map<QueueElement *, size_t> element_to_index{};
 
     void swap(size_t i, size_t j) {
         std::swap(elements[i], elements[j]);
