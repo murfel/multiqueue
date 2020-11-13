@@ -113,6 +113,10 @@ private:
         }
         top_element.store(elements[0]);
     }
+    void set(size_t i, QueueElement * element) {
+        elements[i] = element;
+        elements[i]->index = i;
+    }
     static inline size_t get_parent(size_t i) { return (i - 1) / 2; }
     static inline size_t get_left_child(size_t i) { return i * 2 + 1; }
     static inline size_t get_right_child(size_t i) { return i * 2 + 2; }
@@ -139,8 +143,7 @@ public:
     void pop() {
         --size;
         elements[0]->index = -1;
-        elements[0] = elements[size];
-        elements[0]->index = 0;
+        set(0, elements[size]);
         sift_down(0);
     }
     void push(QueueElement * element) {
@@ -148,8 +151,7 @@ public:
         if (size == elements.size()) {
             elements.resize(elements.size() * 4);
         }
-        elements[size - 1] = element;
-        elements[size - 1]->index = size - 1;
+        set(size - 1, element);
         sift_up(size - 1);
     }
     void decrease_key(QueueElement * element, int new_dist) {
