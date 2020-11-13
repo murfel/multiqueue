@@ -141,8 +141,8 @@ public:
                 auto &q1 = queues[std::min(i, j)].first;
                 auto &q2 = queues[std::max(i, j)].first;
 
-                QueueElement *e1 = q1.top();
-                QueueElement *e2 = q2.top();
+                QueueElement *e1 = q1.top_relaxed();
+                QueueElement *e2 = q2.top_relaxed();
 
                 if (e1 == nullptr || e2 == nullptr) {
                     seen_progress_by_other_threads = true;

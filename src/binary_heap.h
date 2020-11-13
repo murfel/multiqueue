@@ -39,16 +39,16 @@ public:
         return *this;
     }
     DistType get_dist() const {
-        return dist.load(std::memory_order_relaxed);
+        return dist.load();
     }
     void set_dist(DistType new_dist) {
-        dist.store(new_dist, std::memory_order_relaxed);
+        dist.store(new_dist);
     }
     int get_q_id() const {
-        return q_id.load(std::memory_order_relaxed);
+        return q_id.load();
     }
     void set_q_id(int new_q_id) {
-        q_id.store(new_q_id, std::memory_order_relaxed);
+        q_id.store(new_q_id);
     }
     bool operator==(const QueueElement & o) const {
         return o.vertex == vertex && o.get_dist() == get_dist();
@@ -78,6 +78,7 @@ private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
     Spinlock spinlock;
+    std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&EMPTY_ELEMENT)};
 
     void swap(size_t i, size_t j) {
         std::swap(elements[i], elements[j]);
@@ -85,8 +86,10 @@ private:
         elements[j]->index = j;
     }
     void sift_up(size_t i) {
-        if (size <= 1) return;
-        if (i == 0) return;
+        if (size <= 1 || i == 0) {
+            top_element.store(elements[0]);
+            return;
+        };
         size_t p = get_parent(i); // everyone except for i == 0 has a parent
         while (*elements[i] > *elements[p]) {
             swap(i, p);
@@ -94,9 +97,12 @@ private:
             if (i == 0) break;
             p = get_parent(i);
         }
+        top_element.store(elements[0]);
     }
     void sift_down(size_t i) {
-        if (size == 0) return;
+        if (size == 0) {
+            top_element.store(const_cast<QueueElement *>(&EMPTY_ELEMENT));
+        }
         while (get_left_child(i) < size) {
             size_t l = get_left_child(i);
             size_t r = get_right_child(i);
@@ -105,6 +111,7 @@ private:
             swap(i, j);
             i = j;
         }
+        top_element.store(elements[0]);
     }
     static inline size_t get_parent(size_t i) { return (i - 1) / 2; }
     static inline size_t get_left_child(size_t i) { return i * 2 + 1; }
@@ -125,6 +132,9 @@ public:
     }
     QueueElement * top() const {
         return empty() ? (QueueElement *)&EMPTY_ELEMENT : elements.front();
+    }
+    QueueElement * top_relaxed() const {
+        return top_element.load();
     }
     void pop() {
         --size;
