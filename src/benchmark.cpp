@@ -136,7 +136,8 @@ std::vector<BindedImpl> bind_impls(std::vector<Implementation> impls, const AdjL
 bool are_mismatched(const DistVector & correct_answer, const DistVector & to_check) {
     auto mismatch = std::mismatch(correct_answer.begin(), correct_answer.end(), to_check.begin());
     if (mismatch.first != correct_answer.end()) {
-        std::cerr << "Mismatch: " << *mismatch.first << " != " << *mismatch.second << std::endl;
+        std::cerr << "Mismatch: " << *mismatch.second << " != " << *mismatch.first << " at i = "
+                << std::distance(correct_answer.begin(), mismatch.first) << std::endl;
         return true;
     }
     return false;
