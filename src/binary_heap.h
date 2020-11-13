@@ -135,7 +135,7 @@ public:
         return size == 0;
     }
     QueueElement * top() const {
-        return empty() ? (QueueElement *)&EMPTY_ELEMENT : elements.front();
+        return empty() ? const_cast<QueueElement *>(&EMPTY_ELEMENT) : elements.front();
     }
     QueueElement * top_relaxed() const {
         return top_element.load();
