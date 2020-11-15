@@ -17,5 +17,5 @@ TEST(Multiqueue, Simple) {
         }
     }
     ASSERT_NE(element, &EMPTY_ELEMENT);
-    ASSERT_EQ(dists[0], element->dist);
+    ASSERT_EQ(dists[0], element->get_dist());
 }
