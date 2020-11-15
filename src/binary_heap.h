@@ -102,6 +102,7 @@ private:
     void sift_down(size_t i) {
         if (size == 0) {
             top_element.store(const_cast<QueueElement *>(&EMPTY_ELEMENT));
+            return;
         }
         while (get_left_child(i) < size) {
             size_t l = get_left_child(i);
