@@ -100,7 +100,7 @@ public:
                     continue;
                 }
                 if (new_dist < element->get_dist()) {
-                    element->set_dist(new_dist);
+                    element->set_dist_relaxed(new_dist);
                     queue.push(element);
                     element->set_q_id(q_id);
                 }

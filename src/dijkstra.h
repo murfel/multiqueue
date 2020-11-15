@@ -154,8 +154,8 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
             Vertex v2 = e.get_to();
             if (v == v2) continue;
             while (true) {
-                DistType new_v2_dist = elem->get_dist() + e.get_weight();
-                DistType old_v2_dist = vertexes[v2].get_dist();
+                DistType new_v2_dist = elem->get_dist_relaxed() + e.get_weight();
+                DistType old_v2_dist = vertexes[v2].get_dist_relaxed();
                 if (old_v2_dist <= new_v2_dist) {
                     break;
                 }

@@ -6,7 +6,7 @@ TEST(BinaryHeap, Simple) {
     std::vector<QueueElement> vertexes(dists.size());
     for (std::size_t i = 0; i < dists.size(); i++) {
         vertexes[i].vertex = i;
-        vertexes[i].set_dist(dists[i]);
+        vertexes[i].set_dist_relaxed(dists[i]);
     }
     BinaryHeap heap = BinaryHeap();
     ASSERT_TRUE(heap.empty());

@@ -41,8 +41,11 @@ public:
     DistType get_dist() const {
         return dist.load();
     }
-    void set_dist(DistType new_dist) {
-        dist.store(new_dist);
+    void set_dist_relaxed(DistType new_dist) {
+        dist.store(new_dist, std::memory_order_relaxed);
+    }
+    DistType get_dist_relaxed() const {
+        return dist.load(std::memory_order_relaxed);
     }
     int get_q_id() const {
         return q_id.load();
@@ -157,7 +160,7 @@ public:
     }
     void decrease_key(QueueElement * element, int new_dist) {
         if (new_dist < element->get_dist()) { // redundant if?
-            element->set_dist(new_dist);
+            element->set_dist_relaxed(new_dist);
             size_t i = element->index;
             sift_up(i);
         }
