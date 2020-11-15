@@ -149,14 +149,14 @@ public:
                     break;
                 }
 
-                if (*e1 == EMPTY_ELEMENT && *e2 == EMPTY_ELEMENT) {
+                if (e1 == &EMPTY_ELEMENT && e2 == &EMPTY_ELEMENT) {
                     continue;
                 }
 
                 auto * q_ptr = &q1;
                 QueueElement *e = e1;
                 // reversed comparator because std::priority_queue is a max queue
-                if (*e1 == EMPTY_ELEMENT || (*e2 != EMPTY_ELEMENT && *e1 < *e2)) {
+                if (e1 == &EMPTY_ELEMENT || (e2 != &EMPTY_ELEMENT && *e1 < *e2)) {
                     q_ptr = &q2;
                     e = e2;
                 }

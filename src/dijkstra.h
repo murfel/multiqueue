@@ -145,7 +145,7 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
-        if (elem->get_dist() == EMPTY_ELEMENT_DIST) {
+        if (elem == &EMPTY_ELEMENT) {
 //            std::cerr << "bye" << std::endl;
             break;
         }
