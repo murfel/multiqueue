@@ -32,11 +32,10 @@ public:
     Spinlock empty_q_id_lock;  // lock when changing q_id from empty to something
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
     QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
-    QueueElement & operator=(const QueueElement & o) {
-        vertex = o.vertex;
-        dist = o.get_dist();
-        q_id = o.get_q_id();
-        return *this;
+
+    [[noreturn]] QueueElement & operator=(const QueueElement & o) {
+        (void)o;
+        throw std::string("QueueElement.= shouldn't be used. Probably, BinHeap max size is exceeded.");
     }
     DistType get_dist() const {
         return dist.load();
