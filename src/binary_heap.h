@@ -87,7 +87,7 @@ private:
     }
     void sift_up(size_t i) {
         if (size <= 1 || i == 0) {
-            top_element.store(elements[0]);
+            top_element.store(elements[0], std::memory_order_relaxed);
             return;
         };
         size_t p = get_parent(i); // everyone except for i == 0 has a parent
@@ -97,11 +97,11 @@ private:
             if (i == 0) break;
             p = get_parent(i);
         }
-        top_element.store(elements[0]);
+        top_element.store(elements[0], std::memory_order_relaxed);
     }
     void sift_down(size_t i) {
         if (size == 0) {
-            top_element.store(const_cast<QueueElement *>(&EMPTY_ELEMENT));
+            top_element.store(const_cast<QueueElement *>(&EMPTY_ELEMENT), std::memory_order_relaxed);
             return;
         }
         while (get_left_child(i) < size) {
@@ -112,7 +112,7 @@ private:
             swap(i, j);
             i = j;
         }
-        top_element.store(elements[0]);
+        top_element.store(elements[0], std::memory_order_relaxed);
     }
     void set(size_t i, QueueElement * element) {
         elements[i] = element;
@@ -139,7 +139,7 @@ public:
         return empty() ? const_cast<QueueElement *>(&EMPTY_ELEMENT) : elements.front();
     }
     QueueElement * top_relaxed() const {
-        return top_element.load();
+        return top_element.load(std::memory_order_relaxed);
     }
     void pop() {
         --size;
