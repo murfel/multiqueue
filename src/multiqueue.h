@@ -144,11 +144,6 @@ public:
                 QueueElement *e1 = q1.top_relaxed();
                 QueueElement *e2 = q2.top_relaxed();
 
-                if (e1 == nullptr || e2 == nullptr) {
-                    seen_progress_by_other_threads = true;
-                    break;
-                }
-
                 if (e1 == &EMPTY_ELEMENT && e2 == &EMPTY_ELEMENT) {
                     continue;
                 }
