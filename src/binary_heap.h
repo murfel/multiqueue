@@ -46,11 +46,11 @@ public:
     DistType get_dist_relaxed() const {
         return dist.load(std::memory_order_relaxed);
     }
-    int get_q_id() const {
-        return q_id.load();
+    int get_q_id_relaxed() const {
+        return q_id.load(std::memory_order_relaxed);
     }
-    void set_q_id(int new_q_id) {
-        q_id.store(new_q_id);
+    void set_q_id_relaxed(int new_q_id) {
+        q_id.store(new_q_id, std::memory_order_relaxed);
     }
     bool operator==(const QueueElement & o) const {
         return o.vertex == vertex && o.get_dist() == get_dist();

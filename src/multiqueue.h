@@ -71,7 +71,7 @@ public:
         // we can change dist only once the corresponding binheap is locked
         while (true) {
             int EMPTY_Q_ID = -1;
-            int q_id = element->get_q_id();
+            int q_id = element->get_q_id_relaxed();
             bool adding = false;
             if (q_id == EMPTY_Q_ID) {
                 adding = true;
@@ -84,17 +84,21 @@ public:
             // 1) stay the same but dist might or might not change (push OR none)
             // 2) become -1 (pop)
             // 3) change to another queue id (pop, push)
-            if (element->get_q_id() == q_id) { // 1
+            if (element->get_q_id_relaxed() == q_id) { // 1 // If so under the queue's lock + mb, this is the real q_id.
                 if (new_dist < element->get_dist()) {
                     queue.decrease_key(element, new_dist);
                 }
                 queue.unlock();
                 break;
-            } else if (adding or element->get_q_id() == EMPTY_Q_ID) {
-                // 0, aka element->q_id was EMPTY_ID;
+            } else if (adding or element->get_q_id_relaxed() == EMPTY_Q_ID) {
+                // 0, aka element->q_id was EMPTY_Q_ID;
                 // OR 2, aka someone popped the element, but since we already locked this queue, push to it
+                // OR this thread didn't see that q_id was changed to -1,
+                //     but now it sees that someone popped from this queue under the queue lock's memory barrier.
                 element->empty_q_id_lock.lock();
-                if (element->get_q_id() != EMPTY_Q_ID) {
+                if (element->get_q_id_relaxed() != EMPTY_Q_ID) {
+                    // Either someone pushed right before this thread, or this thread didn't see that it was pushed
+                    // a long time ago, but now it sees the last q_id assigned under the empty lock's memory barrier.
                     element->empty_q_id_lock.unlock();
                     queue.unlock();
                     continue;
@@ -102,7 +106,7 @@ public:
                 if (new_dist < element->get_dist()) {
                     element->set_dist_relaxed(new_dist);
                     queue.push(element);
-                    element->set_q_id(q_id);
+                    element->set_q_id_relaxed(q_id);
                 }
                 element->empty_q_id_lock.unlock();
                 queue.unlock();
@@ -123,7 +127,7 @@ public:
                 return const_cast<QueueElement *>(&EMPTY_ELEMENT);
             }
             QueueElement * e = q.top();
-            e->set_q_id(-1);
+            e->set_q_id_relaxed(-1);
             q.pop();
             q.unlock();
             return e;
@@ -163,7 +167,7 @@ public:
                     break;
                 }
                 q.pop();
-                e->set_q_id(-1);
+                e->set_q_id_relaxed(-1);
                 q.unlock();
                 return e;
             }
