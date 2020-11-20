@@ -28,18 +28,24 @@
 #ifndef _CLH_MUTEX_H_
 #define _CLH_MUTEX_H_
 
+#ifndef __cplusplus
 #include <stdatomic.h>
+#else
+#include <atomic>
+#define _Atomic(X) std::atomic< X >
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <sched.h>
 
+using namespace std;
 
 typedef struct clh_mutex_node_ clh_mutex_node_t;
 
 struct clh_mutex_node_
 {
-    _Atomic char succ_must_wait;
+    _Atomic (char) succ_must_wait;
 };
 
 typedef struct

@@ -146,5 +146,5 @@ void clh_mutex_unlock(clh_mutex_t * self)
         // ERROR: This will occur if unlock() is called without a lock()
         return;
     }
-    atomic_store(&self->mynode->succ_must_wait, 0);
+    atomic_store(&self->mynode->succ_must_wait, (char)0);
 }
