@@ -6,6 +6,8 @@
 #include <vector>
 #include <limits>
 
+#include "clh_mutex.h"
+
 class Spinlock {
 private:
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
@@ -15,6 +17,24 @@ public:
     }
     void unlock() {
         spinlock.clear(std::memory_order_release);
+    }
+};
+
+class CLHLock {
+private:
+    clh_mutex_t clh_lock;
+public:
+    CLHLock() {
+        clh_mutex_init(&clh_lock);
+    }
+    void lock() {
+        clh_mutex_lock(&clh_lock);
+    }
+    void unlock() {
+        clh_mutex_unlock(&clh_lock);
+    }
+    ~CLHLock() {
+        clh_mutex_destroy(&clh_lock);
     }
 };
 

@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -pedantic -pthread -DP
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
 add_subdirectory(benchmark)
 
-add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h)
+add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/clh_mutex.h src/clh_mutex.cpp)
 target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
 # TODO: test_multiqueue and test_dijkstra cause multiple definition of random_fnv1a (from multiqueue.h)
