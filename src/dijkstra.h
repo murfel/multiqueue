@@ -104,6 +104,9 @@ private:
 public:
     MultiQueue(const int num_threads, const int size_multiple, std::size_t one_queue_reserve_size) :
             queue(num_threads, size_multiple, one_queue_reserve_size) {}
+    void push_singlethreaded(QueueElement * element, DistType new_dist) override {
+        queue.push_singlethreaded(element, new_dist);
+    }
     void push(QueueElement * element, DistType new_dist) override {
         queue.push(element, new_dist);
     }
