@@ -141,7 +141,8 @@ public:
     }
 };
 
-inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes) {
+inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps) {
+    register_thread(num_bin_heaps, vertexes.size());
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
@@ -166,7 +167,7 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-                                                  const QueueFactory & queue_factory) {
+                                                  const QueueFactory & queue_factory, std::size_t num_bin_heaps) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
@@ -179,7 +180,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     queue.push(&vertexes[START_VERTEX], 0);
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes));
+        threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes), num_bin_heaps);
 #ifdef __linux__
         cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
