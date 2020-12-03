@@ -8,6 +8,10 @@
 
 #include "clh_mutex.h"
 
+extern "C" {
+    #include "clh.h"
+}
+
 class Spinlock {
 private:
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
@@ -38,6 +42,43 @@ public:
     }
 };
 
+std::atomic<uint32_t> thread_counter{0};
+thread_local uint32_t thread_id = thread_counter++;
+
+class Params {
+public:
+    clh_local_params p;
+    Params() {
+        init_clh_local(thread_id, &p);
+    }
+    ~Params() {
+        end_clh_local(p);
+    }
+};
+
+class CLHLockLIBSLOCK {
+private:
+    clh_global_params the_lock;
+    static thread_local std::unordered_map<CLHLockLIBSLOCK *, Params> m;
+public:
+    CLHLockLIBSLOCK() {
+        init_clh_global(&the_lock);
+        m.reserve(256);
+    }
+    void lock() {
+        clh_local_params & p = m[this].p;
+        p.my_pred = (clh_qnode*) clh_acquire(the_lock.the_lock, p.my_qnode);
+    }
+    void unlock() {
+        clh_local_params & p = m[this].p;
+        p.my_qnode = clh_release(p.my_qnode, p.my_pred);
+    }
+    ~CLHLockLIBSLOCK() {
+//        end_clh_global(the_lock);
+    }
+};
+thread_local std::unordered_map<CLHLockLIBSLOCK *, Params> CLHLockLIBSLOCK::m;
+
 using Vertex = std::size_t;
 using DistType = int;
 
@@ -49,7 +90,7 @@ private:
 public:
     size_t index;
     Vertex vertex;
-    Spinlock empty_q_id_lock;  // lock when changing q_id from empty to something
+    CLHLockLIBSLOCK empty_q_id_lock;  // lock when changing q_id from empty to something
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
     QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
 
@@ -99,7 +140,7 @@ class BinaryHeap {
 private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
-    Spinlock spinlock;
+    CLHLockLIBSLOCK spinlock;
     std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&EMPTY_ELEMENT)};
 
     void swap(size_t i, size_t j) {
