@@ -69,7 +69,7 @@ public:
         init_clh_global(&the_lock);
     }
     static void register_thread(std::size_t num_elements) {
-        m.resize(m.size() + num_elements);
+        m.resize(num_elements);
     }
     void lock(std::size_t id) {
         clh_local_params & p = m[id].p;
@@ -251,8 +251,6 @@ public:
 std::size_t BinaryHeap::num_bin_heaps = 0;
 
 void register_thread(std::size_t num_binheaps, std::size_t num_queue_elements) {
-    static std::mutex registration_mutex;
-    const std::lock_guard<std::mutex> lock(registration_mutex);
     CLHLockLIBSLOCK<BinaryHeap>::register_thread(num_binheaps);
     CLHLockLIBSLOCK<QueueElement>::register_thread(num_queue_elements);
 }
