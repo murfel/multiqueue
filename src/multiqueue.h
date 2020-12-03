@@ -66,6 +66,12 @@ public:
         return random_fnv1a(seed) % num_queues;
     }
 
+    void push_singlethreaded(QueueElement * element, int new_dist) {
+        std::size_t q_id = gen_random_queue_index();
+        element->set_dist_relaxed(new_dist);
+        queues[q_id].first.push(element);
+    }
+
     // element->dist should be > new_dist, otherwise nothing happens
     void push(QueueElement * element, int new_dist) {
         // we can change dist only once the corresponding binheap is locked
