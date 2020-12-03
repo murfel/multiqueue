@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <vector>
 #include <limits>
+#include <mutex>
+#include <thread>
 
 #include "clh_mutex.h"
 
