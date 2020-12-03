@@ -87,13 +87,18 @@ private:
 //    volatile char padding[128]{};
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
+    CLHLockLIBSLOCK empty_q_id_spinlock;  // lock when changing q_id from empty to something
 public:
     size_t index;
     Vertex vertex;
-    CLHLockLIBSLOCK empty_q_id_lock;  // lock when changing q_id from empty to something
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
     QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
-
+    void empty_q_id_lock() {
+        empty_q_id_spinlock.lock();
+    }
+    void empty_q_id_unlock() {
+        empty_q_id_spinlock.unlock();
+    }
     [[noreturn]] QueueElement & operator=(const QueueElement & o) {
         (void)o;
         throw std::string("QueueElement.= shouldn't be used. Probably, BinHeap max size is exceeded.");

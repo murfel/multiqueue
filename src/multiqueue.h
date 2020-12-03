@@ -95,11 +95,11 @@ public:
                 // OR 2, aka someone popped the element, but since we already locked this queue, push to it
                 // OR this thread didn't see that q_id was changed to -1,
                 //     but now it sees that someone popped from this queue under the queue lock's memory barrier.
-                element->empty_q_id_lock.lock();
+                element->empty_q_id_lock();
                 if (element->get_q_id_relaxed() != EMPTY_Q_ID) {
                     // Either someone pushed right before this thread, or this thread didn't see that it was pushed
                     // a long time ago, but now it sees the last q_id assigned under the empty lock's memory barrier.
-                    element->empty_q_id_lock.unlock();
+                    element->empty_q_id_unlock();
                     queue.unlock();
                     continue;
                 }
@@ -108,7 +108,7 @@ public:
                     queue.push(element);
                     element->set_q_id_relaxed(q_id);
                 }
-                element->empty_q_id_lock.unlock();
+                element->empty_q_id_unlock();
                 queue.unlock();
                 break;
             } else {  // 3
