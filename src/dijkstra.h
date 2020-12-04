@@ -16,7 +16,10 @@
 #include <numeric>
 #include <cmath>
 
+#include <benchmark/benchmark.h>
+
 #include "multiqueue.h"
+#include "thread_barrier.h"
 
 #ifdef __linux__
 #include <pthread.h>
@@ -24,6 +27,19 @@
 #endif
 
 using DistVector = std::vector<DistType>;
+
+class DummyState {
+private:
+    benchmark::State * state;
+public:
+    explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
+    void PauseTiming() {
+        if (state != nullptr) state->PauseTiming();
+    }
+    void ResumeTiming() {
+        if (state != nullptr) state->ResumeTiming();
+    }
+};
 
 class Edge {
 private:
@@ -145,8 +161,15 @@ public:
     }
 };
 
-inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps) {
+inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
+                                    benchmark::State & state, thread_barrier & barrier, std::size_t thread_id) {
     register_thread(num_bin_heaps, vertexes.size());
+    barrier.wait();
+    if (thread_id == 0) {
+        state.ResumeTiming();
+    }
+    barrier.wait();
+
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
@@ -171,7 +194,10 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-                                                  const QueueFactory & queue_factory, std::size_t num_bin_heaps) {
+                                                  const QueueFactory & queue_factory, std::size_t num_bin_heaps,
+                                                  DummyState state) {
+    state.PauseTiming();
+
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
@@ -183,12 +209,14 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     }
     queue.push_singlethreaded(&vertexes[START_VERTEX], 0);
     std::vector<std::thread> threads;
-    for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes), num_bin_heaps);
+    thread_barrier barrier(num_threads);
+    for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
+        threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes),
+                             num_bin_heaps, std::ref(state), std::ref(barrier), thread_id);
 #ifdef __linux__
         cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(i, &cpuset);
+            CPU_SET(thread_id, &cpuset);
             int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
             (void)rc;
 #endif
@@ -196,6 +224,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     for (std::thread & thread : threads) {
         thread.join();
     }
+    state.PauseTiming();
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
