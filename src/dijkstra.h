@@ -242,7 +242,8 @@ public:
     }
 };
 
-inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph) {
+inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, DummyState state) {
+    state.PauseTiming();
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
@@ -250,6 +251,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjLis
     std::priority_queue<SimpleQueueElement> q;
     dists[START_VERTEX] = 0;
     q.emplace(START_VERTEX, 0);
+    state.ResumeTiming();
     for (std::size_t i = 0; i < num_vertexes; i++) {
         while (!q.empty() && removed_from_queue[q.top().vertex]) {
             q.pop();

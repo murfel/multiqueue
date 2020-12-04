@@ -109,7 +109,7 @@ std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params
     std::vector<Implementation> impls;
     if (run_seq) {
         auto sequential_dijkstra = [](const AdjList &graph, DummyState state) {
-            return calc_sssp_dijkstra_sequential(graph);
+            return calc_sssp_dijkstra_sequential(graph, state);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
     }
