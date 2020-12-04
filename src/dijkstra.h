@@ -161,8 +161,9 @@ public:
     }
 };
 
-inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue, std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
-                                    benchmark::State & state, thread_barrier & barrier, std::size_t thread_id) {
+inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue,
+                                    std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
+                                    DummyState state, thread_barrier & barrier, std::size_t thread_id) {
     register_thread(num_bin_heaps, vertexes.size());
     barrier.wait();
     if (thread_id == 0) {
