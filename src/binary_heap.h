@@ -14,14 +14,16 @@ extern "C" {
     #include "clh.h"
 }
 
+using Vertex = std::size_t;
+
 class Spinlock {
 private:
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
 public:
-    void lock() {
+    void lock(Vertex v = 0) {
         while (spinlock.test_and_set(std::memory_order_acquire));
     }
-    void unlock() {
+    void unlock(Vertex v = 0) {
         spinlock.clear(std::memory_order_release);
     }
 };
@@ -80,13 +82,12 @@ public:
         p.my_qnode = clh_release(p.my_qnode, p.my_pred);
     }
     ~CLHLockLIBSLOCK() {
-//        end_clh_global(the_lock);
+        end_clh_global(the_lock);
     }
 };
 template<class T>
 thread_local std::vector<Params> CLHLockLIBSLOCK<T>::m;
 
-using Vertex = std::size_t;
 using DistType = int;
 
 class QueueElement {
@@ -94,7 +95,8 @@ private:
 //    volatile char padding[128]{};
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
-    CLHLockLIBSLOCK<QueueElement> empty_q_id_spinlock;  // lock when changing q_id from empty to something
+//    CLHLockLIBSLOCK<QueueElement> empty_q_id_spinlock;  // lock when changing q_id from empty to something
+    Spinlock empty_q_id_spinlock;
 public:
     size_t index;
     Vertex vertex;
@@ -154,7 +156,8 @@ private:
     std::size_t bin_heap_id;
     size_t size = 0;
     std::vector<QueueElement *> elements;
-    CLHLockLIBSLOCK<BinaryHeap> spinlock;
+//    CLHLockLIBSLOCK<BinaryHeap> spinlock;
+    Spinlock spinlock;
     std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&EMPTY_ELEMENT)};
 
     void swap(size_t i, size_t j) {

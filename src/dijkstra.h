@@ -16,8 +16,6 @@
 #include <numeric>
 #include <cmath>
 
-#include <benchmark/benchmark.h>
-
 #include "multiqueue.h"
 #include "thread_barrier.h"
 
@@ -33,6 +31,7 @@ private:
     benchmark::State * state;
 public:
     explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
+    DummyState(const DummyState & o) : state(o.state) {}
     void PauseTiming() {
         if (state != nullptr) state->PauseTiming();
     }
@@ -165,6 +164,9 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
                                     std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
                                     DummyState state, thread_barrier & barrier, std::size_t thread_id) {
     register_thread(num_bin_heaps, vertexes.size());
+//    using namespace std::chrono_literals;
+//    std::this_thread::sleep_for(1s);
+//    state.ResumeTiming();
     barrier.wait();
     if (thread_id == 0) {
         state.ResumeTiming();
@@ -192,6 +194,7 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
             }
         }
     }
+    barrier.wait();
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
