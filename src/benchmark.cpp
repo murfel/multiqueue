@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+#include <thread>
 
 #include "dijkstra.h"
 
@@ -19,8 +20,9 @@ public:
 };
 
 static void BM_benchmark(benchmark::State& state, const BindedImpl & impl) {
-    for (auto _ : state)
+    for (auto _ : state) {
         impl.first(DummyState(&state));
+    }
 }
 
 std::vector<std::pair<int, int>> read_params(const std::string & params_filename) {
@@ -156,10 +158,12 @@ void run(std::vector<BindedImpl> impls) {
         const auto & f = impls[i].first;
         const auto & impl_name = impls[i].second;
 
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>(std::bind(f, DummyState()));
+        DummyState ds;
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>(std::bind(f, ds));
         auto time_ms = p.second;
 
         std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
+        std::cerr << ds.get_total().count() << " ms" << std::endl;
     }
 }
 
@@ -203,7 +207,7 @@ int main(int argc, char** argv) {
     } else {
         for (const auto & impl : binded_impls) {
             benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond)
-                    ->MeasureProcessCPUTime()->UseRealTime();
+                    ->MeasureProcessCPUTime()->UseRealTime()->Repetitions(1);
         }
         int pseudo_argc = 1;
         benchmark::Initialize(&pseudo_argc, argv);

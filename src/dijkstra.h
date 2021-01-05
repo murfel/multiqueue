@@ -29,14 +29,39 @@ using DistVector = std::vector<DistType>;
 class DummyState {
 private:
     benchmark::State * state;
+    std::chrono::time_point<std::chrono::high_resolution_clock> start;
+    bool running = false;
+    std::chrono::milliseconds total;
 public:
     explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
     DummyState(const DummyState & o) : state(o.state) {}
     void PauseTiming() {
-        if (state != nullptr) state->PauseTiming();
+        std::cerr << "hi" << std::endl;
+        if (state != nullptr) {
+            state->PauseTiming();
+        } else {
+            if (!running) {
+                return;
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+            total += std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+            running = false;
+        }
     }
     void ResumeTiming() {
-        if (state != nullptr) state->ResumeTiming();
+        if (state != nullptr) {
+            state->ResumeTiming();
+        } else {
+            if (running) {
+                return;
+            }
+            start = std::chrono::high_resolution_clock::now();
+            running = true;
+        }
+    }
+    std::chrono::milliseconds get_total() {
+        return total;
     }
 };
 
@@ -163,10 +188,10 @@ public:
 inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue,
                                     std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
                                     DummyState state, thread_barrier & barrier, std::size_t thread_id) {
+    auto start = std::chrono::high_resolution_clock::now();
     register_thread(num_bin_heaps, vertexes.size());
-//    using namespace std::chrono_literals;
-//    std::this_thread::sleep_for(1s);
-//    state.ResumeTiming();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
     barrier.wait();
     if (thread_id == 0) {
         state.ResumeTiming();
@@ -233,6 +258,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
     }
+    state.ResumeTiming();
     return {dists};
 }
 

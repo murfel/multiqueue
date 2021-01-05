@@ -49,6 +49,7 @@ public:
 
 class Params {
     static std::atomic<uint32_t> thread_counter;
+    volatile char padding[128]{};
 public:
     clh_local_params p;
     Params() {
@@ -92,11 +93,11 @@ using DistType = int;
 
 class QueueElement {
 private:
-//    volatile char padding[128]{};
+    volatile char padding[128]{};
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
-//    CLHLockLIBSLOCK<QueueElement> empty_q_id_spinlock;  // lock when changing q_id from empty to something
-    Spinlock empty_q_id_spinlock;
+    CLHLockLIBSLOCK<QueueElement> empty_q_id_spinlock;  // lock when changing q_id from empty to something
+//    Spinlock empty_q_id_spinlock;
 public:
     size_t index;
     Vertex vertex;
