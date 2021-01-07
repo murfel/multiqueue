@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <thread>
 #include <chrono>
+#include <mutex>
 
 /*
  * Adopted from Boost. See
@@ -14,8 +15,8 @@
  */
 class thread_barrier {
 private:
-    mutex m_mutex;
-    condition_variable m_cond;
+    std::mutex m_mutex;
+    std::condition_variable m_cond;
     unsigned int m_count;
     unsigned int m_treshold;
     unsigned int m_generation;

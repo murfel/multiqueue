@@ -11,7 +11,7 @@ add_subdirectory(benchmark)
 include_directories(libslock/include)
 
 add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/clh_mutex.h src/clh_mutex.cpp src/thread_barrier.h)
-target_link_libraries(mq LINK_PUBLIC benchmark::benchmark LINK_PUBLIC ${CMAKE_SOURCE_DIR}/libslock/libsync.a)
+target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
 
 # TODO: test_multiqueue and test_dijkstra cause multiple definition of random_fnv1a (from multiqueue.h)

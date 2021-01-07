@@ -8,106 +8,37 @@
 #include <mutex>
 #include <thread>
 
-#include "clh_mutex.h"
-
-extern "C" {
-    #include "clh.h"
-}
-
 using Vertex = std::size_t;
+using DistType = int;
 
 class Spinlock {
 private:
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
 public:
-    void lock(Vertex v = 0) {
+    void lock() {
         while (spinlock.test_and_set(std::memory_order_acquire));
     }
-    void unlock(Vertex v = 0) {
+    void unlock() {
         spinlock.clear(std::memory_order_release);
     }
 };
-
-class CLHLock {
-private:
-    clh_mutex_t clh_lock;
-public:
-    CLHLock() {
-        clh_mutex_init(&clh_lock);
-    }
-    void lock() {
-        clh_mutex_lock(&clh_lock);
-    }
-    void unlock() {
-        clh_mutex_unlock(&clh_lock);
-    }
-    ~CLHLock() {
-        clh_mutex_destroy(&clh_lock);
-    }
-};
-
-
-class Params {
-    static std::atomic<uint32_t> thread_counter;
-    volatile char padding[128]{};
-public:
-    clh_local_params p;
-    Params() {
-        thread_local uint32_t thread_id = thread_counter++;
-        init_clh_local(thread_id, &p);
-    }
-    ~Params() {
-        end_clh_local(p);
-    }
-};
-std::atomic<uint32_t> Params::thread_counter{0};
-
-template<class T>
-class CLHLockLIBSLOCK {
-private:
-    clh_global_params the_lock;
-    static thread_local std::vector<Params> m;
-public:
-    CLHLockLIBSLOCK() {
-        init_clh_global(&the_lock);
-    }
-    static void register_thread(std::size_t num_elements) {
-        m.resize(num_elements);
-    }
-    void lock(std::size_t id) {
-        clh_local_params & p = m[id].p;
-        p.my_pred = (clh_qnode*) clh_acquire(the_lock.the_lock, p.my_qnode);
-    }
-    void unlock(std::size_t id) {
-        clh_local_params & p = m[id].p;
-        p.my_qnode = clh_release(p.my_qnode, p.my_pred);
-    }
-    ~CLHLockLIBSLOCK() {
-        end_clh_global(the_lock);
-    }
-};
-template<class T>
-thread_local std::vector<Params> CLHLockLIBSLOCK<T>::m;
-
-using DistType = int;
 
 class QueueElement {
 private:
     volatile char padding[128]{};
     std::atomic<DistType> dist;
     std::atomic<int> q_id;
-//    CLHLockLIBSLOCK<QueueElement> empty_q_id_spinlock;  // lock when changing q_id from empty to something
-    Spinlock empty_q_id_spinlock;
+    Spinlock empty_q_id_spinlock;  // lock when changing q_id from empty to something
 public:
     size_t index;
     Vertex vertex;
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
     QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
     void empty_q_id_lock() {
-        empty_q_id_spinlock.lock(vertex);
+        empty_q_id_spinlock.lock();
     }
     void empty_q_id_unlock() {
-        empty_q_id_spinlock.unlock(vertex);
+        empty_q_id_spinlock.unlock();
     }
     [[noreturn]] QueueElement & operator=(const QueueElement & o) {
         (void)o;
@@ -153,11 +84,8 @@ static const QueueElement EMPTY_ELEMENT(0, EMPTY_ELEMENT_DIST);
 
 class BinaryHeap {
 private:
-    static std::size_t num_bin_heaps;
-    std::size_t bin_heap_id;
     size_t size = 0;
     std::vector<QueueElement *> elements;
-//    CLHLockLIBSLOCK<BinaryHeap> spinlock;
     Spinlock spinlock;
     std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&EMPTY_ELEMENT)};
 
@@ -170,7 +98,7 @@ private:
         if (size <= 1 || i == 0) {
             top_element.store(elements[0], std::memory_order_relaxed);
             return;
-        };
+        }
         size_t p = get_parent(i); // everyone except for i == 0 has a parent
         while (*elements[i] > *elements[p]) {
             swap(i, p);
@@ -203,8 +131,7 @@ private:
     static inline size_t get_left_child(size_t i) { return i * 2 + 1; }
     static inline size_t get_right_child(size_t i) { return i * 2 + 2; }
 public:
-    // This c-tor is NOT thread safe and must be called from the same thread only throughout the program.
-    explicit BinaryHeap(size_t reserve_size = 256) : bin_heap_id(num_bin_heaps++) {
+    explicit BinaryHeap(size_t reserve_size = 256) {
         elements.reserve(reserve_size);
         elements.resize(1);
     }
@@ -245,18 +172,11 @@ public:
         }
     }
     void lock() {
-        spinlock.lock(bin_heap_id);
+        spinlock.lock();
     }
     void unlock() {
-        spinlock.unlock(bin_heap_id);
+        spinlock.unlock();
     }
 };
-
-std::size_t BinaryHeap::num_bin_heaps = 0;
-
-void register_thread(std::size_t num_binheaps, std::size_t num_queue_elements) {
-    CLHLockLIBSLOCK<BinaryHeap>::register_thread(num_binheaps);
-    CLHLockLIBSLOCK<QueueElement>::register_thread(num_queue_elements);
-}
 
 #endif //MULTIQUEUE_BINARY_HEAP_H

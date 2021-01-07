@@ -276,7 +276,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjLis
     //state.PauseTiming();
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
-    DistVector dists(num_vertexes, INT_MAX);
+    DistVector dists(num_vertexes, std::numeric_limits<int>::max());
     std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<SimpleQueueElement> q;
     dists[START_VERTEX] = 0;
