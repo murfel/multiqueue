@@ -196,8 +196,76 @@ void run_and_check(std::vector<BindedImpl> impls) {
     }
 }
 
+void ops_thread_routine(Multiqueue & q, thread_barrier & barrier, uint64_t & num_ops) {
+    const std::size_t max_value = (std::size_t)1e8;
+    const std::size_t max_elems = (std::size_t)1e8;
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<int> distribution(0, max_value);
+    auto dice = std::bind ( distribution, generator );
+    std::vector<QueueElement> elements(max_elems);
+    barrier.wait();
+    auto start = std::chrono::high_resolution_clock::now();
+    int subticks = 1000;
+    for (size_t i = 0; i < elements.size(); i++) {
+        for (int j = 0; j < subticks; i++, j++) {
+            q.push(&elements[i], dice());
+            q.pop();
+            num_ops += 2;
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() > 1000) {
+            break;
+        }
+    }
+    barrier.wait();
+}
+
+void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
+    const std::size_t init_size = (std::size_t)1e6;
+    const std::size_t max_value = (std::size_t)1e8;
+    const std::size_t max_elems = (std::size_t)1e8;
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<int> distribution(0, max_value);
+    auto dice = std::bind ( distribution, generator );
+
+    Multiqueue q(num_threads, size_multiple, max_elems);
+    std::vector<QueueElement> init_elements(init_size);
+    for (std::size_t i = 0; i < init_elements.size(); i++) {
+        q.push(&init_elements[i], dice());
+    }
+    std::vector<uint64_t> num_ops_counters(num_threads);
+    std::vector<std::thread> threads;
+    thread_barrier barrier(num_threads);
+    for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
+        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]));
+        #ifdef __linux__
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(thread_id, &cpuset);
+        int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
+        (void)rc;
+        #endif
+    }
+    for (std::thread & thread : threads) {
+        thread.join();
+    }
+    for (uint64_t num_ops: num_ops_counters) {
+        std::cerr << num_ops << std::endl;
+    }
+    std::cerr << std::accumulate(num_ops_counters.begin(), num_ops_counters.end(), 0ULL) << std::endl;
+}
+
 int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
+    if (true) {
+        for (auto & param: config.params) {
+            std::cerr << param.first << " " << param.second << std::endl;
+            throughput_benchmark(param.first, param.second);
+        }
+        return 0;
+    }
     auto impls = create_impls(config.params, config.run_seq, config.one_queue_reserve_size);
     auto binded_impls = bind_impls(impls, config.graph);
     if (config.run_type == Config::run) {

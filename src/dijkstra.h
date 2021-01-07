@@ -188,15 +188,15 @@ public:
 inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue,
                                     std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
                                     DummyState state, thread_barrier & barrier, std::size_t thread_id) {
-    auto start = std::chrono::high_resolution_clock::now();
-    register_thread(num_bin_heaps, vertexes.size());
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
-    barrier.wait();
-    if (thread_id == 0) {
-        state.ResumeTiming();
-    }
-    barrier.wait();
+//    auto start = std::chrono::high_resolution_clock::now();
+//    register_thread(num_bin_heaps, vertexes.size());
+//    auto end = std::chrono::high_resolution_clock::now();
+//    std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+//    barrier.wait();
+//    if (thread_id == 0) {
+//        state.ResumeTiming();
+//    }
+//    barrier.wait();
 
     while (true) {
         QueueElement * elem = queue.pop();
@@ -219,13 +219,13 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
             }
         }
     }
-    barrier.wait();
+//    barrier.wait();
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   const QueueFactory & queue_factory, std::size_t num_bin_heaps,
                                                   DummyState state) {
-    state.PauseTiming();
+//    state.PauseTiming();
 
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
@@ -253,12 +253,12 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     for (std::thread & thread : threads) {
         thread.join();
     }
-    state.PauseTiming();
+    //state.PauseTiming();
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
     }
-    state.ResumeTiming();
+    //state.ResumeTiming();
     return {dists};
 }
 
@@ -273,7 +273,7 @@ public:
 };
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, DummyState state) {
-    state.PauseTiming();
+    //state.PauseTiming();
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
