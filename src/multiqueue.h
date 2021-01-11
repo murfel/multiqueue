@@ -91,6 +91,8 @@ public:
 template <class T>
 class LockablePriorityQueueWithEmptyElement {
 private:
+    std::atomic<T> top_element{empty_element};
+    volatile char my_padding[128];
     ReservablePriorityQueue<T> queue;
     T empty_element;
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
@@ -109,14 +111,22 @@ public:
     }
 
     void push(T value) {
+        T old_top = queue.top();
         queue.push(value);
+        if (old_top != queue.top()) {
+            top_element.store(queue.top());
+        }
     }
 
-    const T & top() const {
+    const T top() const {
         if (queue.empty()) {
             return empty_element;
         }
         return queue.top();
+    }
+
+    const T top_relaxed() const {
+        return top_element.load();
     }
 
     T pop() {
@@ -125,6 +135,11 @@ public:
         }
         T elem = queue.top();
         queue.pop();
+        if (queue.empty()) {
+            top_element.store(empty_element);
+        } else {
+            top_element.store(queue.top());
+        }
         return elem;
     }
 
@@ -207,33 +222,38 @@ private:
             auto & q1 = queues[std::min(i, j)].first;
             auto & q2 = queues[std::max(i, j)].first;
 
-            q1.lock();
-            q2.lock();
-
-            T e1 = q1.top();
-            T e2 = q2.top();
+            T e1 = q1.top_relaxed();
+            T e2 = q2.top_relaxed();
 
             if (e1 == empty_element && e2 == empty_element) {
-                q1.unlock();
-                q2.unlock();
                 continue;
             }
 
             // reversed comparator because std::priority_queue is a max queue
             if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
-                q1.unlock();
-                T e = q2.pop();
+                q2.lock();
+                T e = q2.top();
+                if (e != e2) {
+                    q2.unlock();
+                    continue;
+                }
 //                if (q2.top() == empty_element) {
 //                    num_non_empty_queues.first--;
 //                }
+                e = q2.pop();
                 q2.unlock();
                 return e;
             } else {
-                q2.unlock();
-                T e = q1.pop();
+                q1.lock();
+                T e = q1.top();
+                if (e != e1) {
+                    q1.unlock();
+                    continue;
+                }
 //                if (q1.top() == empty_element) {
 //                    num_non_empty_queues.first--;
 //                }
+                e = q1.pop();
                 q1.unlock();
                 return e;
             }
