@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <atomic>
 
+#include "boost/heap/d_ary_heap.hpp"
+
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
 
@@ -44,11 +46,11 @@ uint64_t random_fnv1a(uint64_t & seed) {
 }
 
 template <class T>
-class ReservablePriorityQueue : public std::priority_queue<T, std::vector<T>>
+class ReservablePriorityQueue : public boost::heap::d_ary_heap<T, boost::heap::arity<8>>
 {
 public:
     explicit ReservablePriorityQueue(std::size_t reserve_size = 0) {
-        this->c.reserve(reserve_size);
+        this->reserve(reserve_size);
     }
 };
 
@@ -75,7 +77,10 @@ public:
     }
 
     void push(T value) {
-        T old_top = queue.top();
+        T old_top = empty_element;
+        if (!queue.empty()) {
+            old_top = queue.top();
+        }
         queue.push(value);
         if (old_top != queue.top()) {
             top_element.store(queue.top());
