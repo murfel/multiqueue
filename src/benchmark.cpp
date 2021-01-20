@@ -183,7 +183,7 @@ void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, 
         elements.emplace_back(dice());
     }
     barrier.wait();
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
     int subticks = 1000;
     for (size_t i = 0; i < max_elements; i++) {
         for (int j = 0; j < subticks; i++, j++) {
@@ -191,7 +191,7 @@ void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, 
             q.pop();
             num_ops += 2;
         }
-        auto end = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() > 1000) {
             break;
         }
