@@ -120,11 +120,6 @@ public:
         while (spinlock.test_and_set(std::memory_order_acquire));
     }
 
-    bool try_lock() {
-        while (spinlock.test_and_set(std::memory_order_acquire));
-        return true;
-    }
-
     void unlock() {
         spinlock.clear(std::memory_order_release);
     }
