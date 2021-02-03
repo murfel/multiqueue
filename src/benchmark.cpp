@@ -170,10 +170,38 @@ void check(std::vector<BindedImpl> impls) {
     }
 }
 
-void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, uint64_t & num_ops) {
+void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, uint64_t & num_ops, bool monotonic) {
     const std::size_t max_value = (std::size_t)1e8;
     const std::size_t max_elements = (std::size_t)1e8;
 
+    barrier.wait();
+if (monotonic) {
+    std::default_random_engine generator;
+    std::uniform_int_distribution<DistType> distribution(1, 100);
+    auto dice = std::bind ( distribution, generator );
+    std::vector<DistType> elements;
+    elements.reserve(max_elements);
+    for (size_t i = 0; i < max_elements; i++) {
+        elements.emplace_back(dice());
+    }
+    barrier.wait();
+    auto start = std::chrono::steady_clock::now();
+    int subticks = 1000;
+    for (size_t i = 0; i < max_elements; i++) {
+        for (int j = 0; j < subticks; i++, j++) {
+            auto elem = q.pop();
+            q.push({1, elem.get_dist() + elements[i]});
+            num_ops += 2;
+        }
+        auto end = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() > 1000) {
+            break;
+        }
+    }
+    barrier.wait();
+    return;
+}
+{
     std::default_random_engine generator;
     std::uniform_int_distribution<DistType> distribution(0, max_value);
     auto dice = std::bind ( distribution, generator );
@@ -198,8 +226,9 @@ void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, 
     }
     barrier.wait();
 }
+}
 
-void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
+void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
     const std::size_t init_size = (std::size_t)1e6;
     const std::size_t max_value = (std::size_t)1e8;
     const std::size_t max_elems = (std::size_t)1e8;
@@ -216,7 +245,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     std::vector<std::thread> threads;
     thread_barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
-        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]));
+        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
         #ifdef __linux__
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
@@ -243,7 +272,7 @@ int main(int argc, char** argv) {
             std::cerr << param.first << " " << param.second << std::endl;
         }
         for (auto & param: config.params) {
-            throughput_benchmark(param.first, param.second);
+            throughput_benchmark(param.first, param.second, true);
         }
         return 0;
     }
