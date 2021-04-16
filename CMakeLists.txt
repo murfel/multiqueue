@@ -8,8 +8,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXEON -DR730 -DCOMPACT -DUSE_CLH_LOCKS -D_GNU_SOURCE -DADD_PADDING")
 add_subdirectory(benchmark)
 
-include_directories(libslock/include)
-
 add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/thread_barrier.h)
 target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
