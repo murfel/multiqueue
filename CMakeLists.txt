@@ -10,7 +10,7 @@ add_subdirectory(benchmark)
 
 include_directories(libslock/include)
 
-add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/clh_mutex.h src/clh_mutex.cpp src/thread_barrier.h)
+add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/thread_barrier.h)
 target_link_libraries(mq LINK_PUBLIC benchmark::benchmark)
 
 
