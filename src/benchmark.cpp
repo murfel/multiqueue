@@ -70,6 +70,10 @@ AdjList read_edges_into_adj_list(std::istream & istream) {
 
 AdjList read_input(std::string filename) {
     std::ifstream input(filename + ".in");
+    if (!input.good()) {
+        std::cerr << "Input file " + filename + ".in doesn't exist" << std::endl;
+        exit(1);
+    }
     std::cerr << "Reading " << filename << ": ";
     auto p = measure_time<AdjList>([& input]() { return read_edges_into_adj_list(input); });
     std::chrono::milliseconds time_ms = p.second;
