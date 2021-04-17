@@ -16,8 +16,9 @@
 #include <numeric>
 #include <cmath>
 
+#include <boost/thread/barrier.hpp>
+
 #include "multiqueue.h"
-#include "thread_barrier.h"
 
 #ifdef __linux__
 #include <pthread.h>
@@ -187,7 +188,7 @@ public:
 
 inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue,
                                     std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
-                                    DummyState state, thread_barrier & barrier, std::size_t thread_id) {
+                                    DummyState state, boost::barrier & barrier, std::size_t thread_id) {
 //    auto start = std::chrono::high_resolution_clock::now();
 //    register_thread(num_bin_heaps, vertexes.size());
 //    auto end = std::chrono::high_resolution_clock::now();
@@ -238,7 +239,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     }
     queue.push_singlethreaded(&vertexes[START_VERTEX], 0);
     std::vector<std::thread> threads;
-    thread_barrier barrier(num_threads);
+    boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes),
                              num_bin_heaps, std::ref(state), std::ref(barrier), thread_id);
