@@ -85,79 +85,6 @@ public:
 
 using AdjList = std::vector<std::vector<Edge>>;
 
-
-template <class T>
-class AbstractQueue {
-public:
-    virtual void push_singlethreaded(T * element, DistType new_dist) = 0;
-    virtual void push(T * element, DistType new_dist) = 0;
-    virtual T * pop() = 0;
-    virtual ~AbstractQueue() = default;
-};
-
-template <class T>
-class RegularPriorityQueue : public AbstractQueue<T> {
-private:
-    std::priority_queue<T> queue;
-    const T empty_element;
-public:
-    explicit RegularPriorityQueue(T empty_element) : empty_element(empty_element) {}
-    void push(T elem) override {
-        queue.push(elem);
-    }
-    T pop() override {
-        if (queue.empty()) {
-            return empty_element;
-        }
-        T elem = queue.top();
-        queue.pop();
-        return elem;
-    }
-};
-
-template <class T>
-class BlockingQueue : public AbstractQueue<T> {
-private:
-    std::priority_queue<T> queue;
-    std::mutex mutex;
-    const T empty_element;
-public:
-    explicit BlockingQueue(T empty_element) : empty_element(empty_element) {}
-    void push(T elem) override {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.push(elem);
-    }
-    T pop() override {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (queue.empty()) {
-            return empty_element;
-        }
-        T elem = queue.top();
-        queue.pop();
-        return elem;
-    }
-};
-
-
-class MultiQueue : public AbstractQueue<QueueElement> {
-private:
-    Multiqueue queue;
-public:
-    MultiQueue(const int num_threads, const int size_multiple, std::size_t one_queue_reserve_size) :
-            queue(num_threads, size_multiple, one_queue_reserve_size) {}
-    void push_singlethreaded(QueueElement * element, DistType new_dist) override {
-        queue.push_singlethreaded(element, new_dist);
-    }
-    void push(QueueElement * element, DistType new_dist) override {
-        queue.push(element, new_dist);
-    }
-    QueueElement * pop() override {
-        return queue.pop();
-    }
-};
-
-using QueueFactory = std::function<std::unique_ptr<AbstractQueue<QueueElement>>()>;
-
 class SsspDijkstraDistsAndStatistics {
 private:
     DistVector dists;
@@ -186,7 +113,7 @@ public:
     }
 };
 
-inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueElement> & queue,
+inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
                                     std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
                                     DummyState state, boost::barrier & barrier, std::size_t thread_id) {
 //    auto start = std::chrono::high_resolution_clock::now();
@@ -224,14 +151,13 @@ inline void dijkstra_thread_routine(const AdjList & graph, AbstractQueue<QueueEl
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-                                                  const QueueFactory & queue_factory, std::size_t num_bin_heaps,
+                                                  std::size_t num_bin_heaps,
                                                   DummyState state) {
 //    state.PauseTiming();
 
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
-    auto queue_ptr = queue_factory();
-    AbstractQueue<QueueElement> & queue = *queue_ptr;
+    Multiqueue queue = Multiqueue(num_threads, num_bin_heaps / num_threads, 256);
     std::vector<QueueElement> vertexes;
     vertexes.reserve(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
