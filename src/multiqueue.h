@@ -22,7 +22,7 @@ const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
 template<class T>
 struct padded {
     T first;
-    volatile char pad[PADDING];
+    volatile char pad[PADDING]{};
 };
 
 template<class T>
@@ -60,7 +60,7 @@ public:
             queues.push_back(p);
         }
     }
-    std::size_t gen_random_queue_index() {
+    std::size_t gen_random_queue_index() const {
         static std::atomic<size_t> num_threads_registered{0};
         thread_local uint64_t seed = 2758756369U + num_threads_registered++;
         return random_fnv1a(seed) % num_queues;

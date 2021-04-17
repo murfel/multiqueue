@@ -30,7 +30,7 @@ private:
     std::atomic<int> q_id;
     Spinlock empty_q_id_spinlock;  // lock when changing q_id from empty to something
 public:
-    size_t index;
+    size_t index{};
     Vertex vertex;
     explicit QueueElement(Vertex vertex = 0, DistType dist = std::numeric_limits<DistType>::max()) : dist(dist), q_id(-1), vertex(vertex) {}
     QueueElement(const QueueElement & o) : dist(o.dist.load()), q_id(o.q_id.load()), vertex(o.vertex) {}
@@ -42,7 +42,7 @@ public:
     }
     [[noreturn]] QueueElement & operator=(const QueueElement & o) {
         (void)o;
-        throw std::string("QueueElement.= shouldn't be used. Probably, BinHeap max size is exceeded.");
+        throw std::logic_error("QueueElement.= shouldn't be used. Probably, BinHeap max size is exceeded.");
     }
     DistType get_dist() const {
         return dist.load();

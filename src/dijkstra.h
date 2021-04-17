@@ -32,7 +32,7 @@ private:
     benchmark::State * state;
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     bool running = false;
-    std::chrono::milliseconds total;
+    std::chrono::milliseconds total{0};
 public:
     explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
     DummyState(const DummyState & o) : state(o.state) {}
@@ -75,8 +75,8 @@ public:
     Vertex get_to() const {
         return to;
     }
-    void set_to(Vertex to) {
-        this->to = to;
+    void set_to(Vertex new_to) {
+        to = new_to;
     }
     DistType get_weight() const {
         return weight;
@@ -89,7 +89,7 @@ class SsspDijkstraDistsAndStatistics {
 private:
     DistVector dists;
     DistVector vertex_pulls_counts;
-    std::size_t num_pushes;
+    std::size_t num_pushes{};
     std::vector<std::size_t> max_queue_sizes;
 public:
     SsspDijkstraDistsAndStatistics(
@@ -97,7 +97,7 @@ public:
             std::vector<std::size_t> max_queue_sizes) :
             dists(std::move(dists)), vertex_pulls_counts(std::move(vertex_pulls_counts)), num_pushes(num_pushes),
             max_queue_sizes(std::move(max_queue_sizes)) {}
-    SsspDijkstraDistsAndStatistics(DistVector dists) : dists(std::move(dists)) {};
+    explicit SsspDijkstraDistsAndStatistics(DistVector dists) : dists(std::move(dists)) {};
     SsspDijkstraDistsAndStatistics() = default;
     const DistVector &get_dists() const {
         return dists;
@@ -114,12 +114,11 @@ public:
 };
 
 inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
-                                    std::vector<QueueElement> & vertexes, std::size_t num_bin_heaps,
-                                    DummyState state, boost::barrier & barrier, std::size_t thread_id) {
-//    auto start = std::chrono::high_resolution_clock::now();
-//    register_thread(num_bin_heaps, vertexes.size());
-//    auto end = std::chrono::high_resolution_clock::now();
-//    std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+                                    std::vector<QueueElement> & vertexes,
+                                    const DummyState& state, boost::barrier & barrier, std::size_t thread_id) {
+    (void) state;
+    (void) thread_id;
+    (void) barrier;
 //    barrier.wait();
 //    if (thread_id == 0) {
 //        state.ResumeTiming();
@@ -147,17 +146,16 @@ inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
             }
         }
     }
-//    barrier.wait();
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-                                                  std::size_t num_bin_heaps,
+                                                  int size_multiple, std::size_t one_queue_reserve_size,
                                                   DummyState state) {
 //    state.PauseTiming();
 
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
-    Multiqueue queue = Multiqueue(num_threads, num_bin_heaps / num_threads, 256);
+    Multiqueue queue = Multiqueue(num_threads, size_multiple, one_queue_reserve_size);
     std::vector<QueueElement> vertexes;
     vertexes.reserve(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
@@ -168,7 +166,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes),
-                             num_bin_heaps, std::ref(state), std::ref(barrier), thread_id);
+                             std::ref(state), std::ref(barrier), thread_id);
 #ifdef __linux__
         cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -186,7 +184,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
         dists[i] = vertexes[i].get_dist();
     }
     //state.ResumeTiming();
-    return {dists};
+    return SsspDijkstraDistsAndStatistics(dists);
 }
 
 class SimpleQueueElement {
@@ -229,7 +227,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjLis
             }
         }
     }
-    return {dists};
+    return SsspDijkstraDistsAndStatistics(dists);
 }
 
 #endif //MULTIQUEUE_DIJKSTRA_H

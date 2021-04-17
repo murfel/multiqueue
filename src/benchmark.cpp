@@ -1,5 +1,7 @@
-#include <benchmark/benchmark.h>
 #include <thread>
+#include <utility>
+
+#include <benchmark/benchmark.h>
 
 #include <boost/thread/barrier.hpp>
 
@@ -11,8 +13,9 @@ using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics(DummyS
 class Config {
 public:
     enum RunType { run, check, benchmark };
-    Config(const std::vector<std::pair<int, int>> &params, const AdjList &graph, size_t one_queue_reserve_size,
-           RunType run_type, bool run_seq) : params(params), graph(graph), one_queue_reserve_size(one_queue_reserve_size),
+    Config(std::vector<std::pair<int, int>> params, AdjList graph, size_t one_queue_reserve_size,
+           RunType run_type, bool run_seq)
+           : params(std::move(params)), graph(std::move(graph)), one_queue_reserve_size(one_queue_reserve_size),
                                        run_type(run_type), run_seq(run_seq || run_type == check) {}
     std::vector<std::pair<int, int>> params;
     AdjList graph;
@@ -23,6 +26,7 @@ public:
 
 static void BM_benchmark(benchmark::State& state, const BindedImpl & impl) {
     for (auto _ : state) {
+        (void) _;
         impl.first(DummyState(&state));
     }
 }
@@ -46,7 +50,7 @@ std::pair<R, std::chrono::milliseconds> measure_time(std::function<R()> func_to_
     return {r, std::chrono::duration_cast<std::chrono::milliseconds>(end - start)};
 }
 
-std::chrono::milliseconds measure_time(std::function<void()> func_to_test) {
+std::chrono::milliseconds measure_time(const std::function<void()>& func_to_test) {
     auto start = std::chrono::high_resolution_clock::now();
     func_to_test();
     auto end = std::chrono::high_resolution_clock::now();
@@ -68,7 +72,7 @@ AdjList read_edges_into_adj_list(std::istream & istream) {
     return adj_list;
 }
 
-AdjList read_input(std::string filename) {
+AdjList read_input(const std::string& filename) {
     std::ifstream input(filename + ".in");
     if (!input.good()) {
         std::cerr << "Input file " + filename + ".in doesn't exist" << std::endl;
@@ -112,11 +116,11 @@ Config process_input(int argc, char** argv) {
     return Config(params, graph, one_queue_reserve_size, run_type, run_seq);
 }
 
-std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params, bool run_seq,
+std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>& params, bool run_seq,
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
     if (run_seq) {
-        auto sequential_dijkstra = [](const AdjList &graph, DummyState state) {
+        auto sequential_dijkstra = [](const AdjList &graph, const DummyState& state) {
             return calc_sssp_dijkstra_sequential(graph, state);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
@@ -124,18 +128,21 @@ std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params
     for (const auto & param: params) {
         int num_threads = param.first;
         int size_multiple = param.second;
-        std::size_t num_bin_heaps = num_threads * size_multiple;
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        impls.emplace_back([num_threads, num_bin_heaps] (const AdjList & graph, DummyState state)
-                { return calc_sssp_dijkstra(graph, num_threads, num_bin_heaps, state); }, impl_name);
+        impls.emplace_back(
+                [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, const DummyState& state) {
+                    return calc_sssp_dijkstra(graph, num_threads, size_multiple, one_queue_reserve_size, state);
+                },
+                impl_name);
     }
     return impls;
 }
 
-std::vector<BindedImpl> bind_impls(std::vector<Implementation> impls, const AdjList &graph) {
+std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, const AdjList &graph) {
     std::vector<BindedImpl> binded_impls;
     for (const auto & impl : impls) {
-        binded_impls.push_back(std::make_pair(std::bind(impl.first, graph, std::placeholders::_1), impl.second));
+        binded_impls.emplace_back(
+                [&impl, &graph](const DummyState & state) { return impl.first(graph, state); }, impl.second);
     }
     return binded_impls;
 }
@@ -157,13 +164,13 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
     ostream << '\n';
 }
 
-void run(std::vector<BindedImpl> impls) {
-    for (std::size_t i = 0; i < impls.size(); i++) {
-        const auto & f = impls[i].first;
-        const auto & impl_name = impls[i].second;
+void run(const std::vector<BindedImpl>& impls) {
+    for (auto & impl : impls) {
+        const auto & f = impl.first;
+        const auto & impl_name = impl.second;
 
         DummyState ds;
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>(std::bind(f, ds));
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f, &ds] { return f(ds); });
         auto time_ms = p.second;
 
         std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
@@ -178,7 +185,7 @@ void run_and_check(std::vector<BindedImpl> impls) {
         const auto & f = impls[i].first;
         const auto & impl_name = impls[i].second;
 
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>(std::bind(f, DummyState()));
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f] { return f(DummyState()); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
@@ -201,12 +208,12 @@ void run_and_check(std::vector<BindedImpl> impls) {
 }
 
 void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num_ops) {
-    const std::size_t max_value = (std::size_t)1e8;
-    const std::size_t max_elems = (std::size_t)1e8;
+    const auto max_value = (std::size_t)1e8;
+    const auto max_elems = (std::size_t)1e8;
 
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, max_value);
-    auto dice = std::bind ( distribution, generator );
+    auto dice = [&distribution, &generator] { return distribution(generator); };
     std::vector<QueueElement> elements(max_elems);
     barrier.wait();
     auto start = std::chrono::high_resolution_clock::now();
@@ -226,18 +233,18 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
 }
 
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
-    const std::size_t init_size = (std::size_t)1e6;
-    const std::size_t max_value = (std::size_t)1e8;
-    const std::size_t max_elems = (std::size_t)1e8;
+    const auto init_size = (std::size_t)1e6;
+    const auto max_value = (std::size_t)1e8;
+    const auto max_elems = (std::size_t)1e8;
 
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, max_value);
-    auto dice = std::bind ( distribution, generator );
+    auto dice = [&distribution, &generator] { return distribution(generator); };
 
     Multiqueue q(num_threads, size_multiple, max_elems);
     std::vector<QueueElement> init_elements(init_size);
-    for (std::size_t i = 0; i < init_elements.size(); i++) {
-        q.push(&init_elements[i], dice());
+    for (auto & init_element : init_elements) {
+        q.push(&init_element, dice());
     }
     std::vector<uint64_t> num_ops_counters(num_threads);
     std::vector<std::thread> threads;
@@ -263,7 +270,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
 
 int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
-    if (true) {
+    if (false) {
         for (auto & param: config.params) {
             std::cerr << param.first << " " << param.second << std::endl;
             throughput_benchmark(param.first, param.second);
