@@ -14,6 +14,8 @@ find_package(Boost REQUIRED COMPONENTS thread)
 add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h)
 target_link_libraries(mq PRIVATE benchmark::benchmark Boost::thread)
 
+add_executable(benchmark_example benchmark_example.cpp)
+target_link_libraries(benchmark_example PRIVATE benchmark::benchmark Boost::thread)
 
 # TODO: test_multiqueue and test_dijkstra cause multiple definition of random_fnv1a (from multiqueue.h)
 set(TEST_SOURCES
