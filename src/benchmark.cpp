@@ -7,8 +7,8 @@
 
 #include "dijkstra.h"
 
-using Implementation = std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, DummyState)>, std::string>;
-using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics(DummyState)>, std::string>;
+using Implementation = std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, DummyState &)>, std::string>;
+using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics(DummyState &)>, std::string>;
 
 class Config {
 public:
@@ -27,7 +27,10 @@ public:
 static void BM_benchmark(benchmark::State& state, const BindedImpl & impl) {
     for (auto _ : state) {
         (void) _;
-        impl.first(DummyState(&state));
+        state.PauseTiming();
+        DummyState ds(&state);
+        impl.first(ds);
+        state.ResumeTiming();
     }
 }
 
@@ -120,7 +123,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
     if (run_seq) {
-        auto sequential_dijkstra = [](const AdjList &graph, const DummyState& state) {
+        auto sequential_dijkstra = [](const AdjList &graph, DummyState& state) {
             return calc_sssp_dijkstra_sequential(graph, state);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
@@ -130,7 +133,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         int size_multiple = param.second;
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         impls.emplace_back(
-                [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, const DummyState& state) {
+                [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, DummyState& state) {
                     return calc_sssp_dijkstra(graph, num_threads, size_multiple, one_queue_reserve_size, state);
                 },
                 impl_name);
@@ -142,7 +145,7 @@ std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, con
     std::vector<BindedImpl> binded_impls;
     for (const auto & impl : impls) {
         binded_impls.emplace_back(
-                [&impl, &graph](const DummyState & state) { return impl.first(graph, state); }, impl.second);
+                [&impl, &graph](DummyState & state) { return impl.first(graph, state); }, impl.second);
     }
     return binded_impls;
 }
@@ -185,11 +188,13 @@ void run_and_check(std::vector<BindedImpl> impls) {
         const auto & f = impls[i].first;
         const auto & impl_name = impls[i].second;
 
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f] { return f(DummyState()); });
+        DummyState ds;
+        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f, &ds] { return f(ds); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
-        std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
+        std::cerr << impl_name << " " << time_ms.count() << " ms ";
+        std::cerr << "(clean time: " << ds.get_total().count() << " ms)" << std::endl;
         const DistVector &dists = dists_and_statistics.get_dists();
 
         bool mismatched = false;

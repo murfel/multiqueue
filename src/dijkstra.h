@@ -35,9 +35,7 @@ private:
     std::chrono::milliseconds total{0};
 public:
     explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
-    DummyState(const DummyState & o) : state(o.state) {}
     void PauseTiming() {
-        std::cerr << "hi" << std::endl;
         if (state != nullptr) {
             state->PauseTiming();
         } else {
@@ -45,7 +43,6 @@ public:
                 return;
             }
             auto end = std::chrono::high_resolution_clock::now();
-            std::cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
             total += std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
             running = false;
         }
@@ -115,15 +112,12 @@ public:
 
 inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
                                     std::vector<QueueElement> & vertexes,
-                                    const DummyState& state, boost::barrier & barrier, std::size_t thread_id) {
-    (void) state;
-    (void) thread_id;
-    (void) barrier;
-//    barrier.wait();
-//    if (thread_id == 0) {
-//        state.ResumeTiming();
-//    }
-//    barrier.wait();
+                                    DummyState& state, boost::barrier & barrier, std::size_t thread_id) {
+    barrier.wait();
+    if (thread_id == 0) {
+        state.ResumeTiming();
+    }
+    barrier.wait();
 
     while (true) {
         QueueElement * elem = queue.pop();
@@ -146,13 +140,17 @@ inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
             }
         }
     }
+
+    barrier.wait();
+    if (thread_id == 0) {
+        state.PauseTiming();
+    }
+    barrier.wait();
 }
 
 inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   int size_multiple, std::size_t one_queue_reserve_size,
-                                                  DummyState state) {
-//    state.PauseTiming();
-
+                                                  DummyState& state) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     Multiqueue queue = Multiqueue(num_threads, size_multiple, one_queue_reserve_size);
@@ -178,12 +176,11 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     for (std::thread & thread : threads) {
         thread.join();
     }
-    //state.PauseTiming();
+    state.PauseTiming();
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
     }
-    //state.ResumeTiming();
     return SsspDijkstraDistsAndStatistics(dists);
 }
 
@@ -197,8 +194,7 @@ public:
     }
 };
 
-inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, DummyState state) {
-    //state.PauseTiming();
+inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, DummyState& state) {
     const Vertex START_VERTEX = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, std::numeric_limits<int>::max());
@@ -227,6 +223,7 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjLis
             }
         }
     }
+    state.PauseTiming();
     return SsspDijkstraDistsAndStatistics(dists);
 }
 
