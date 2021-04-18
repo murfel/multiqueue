@@ -176,7 +176,6 @@ inline DistsAndStatistics calc_dijkstra(const AdjList & graph, std::size_t num_t
     for (std::thread & thread : threads) {
         thread.join();
     }
-    state.pause_timing();
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
