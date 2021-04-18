@@ -216,7 +216,7 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
     const auto max_value = (std::size_t)1e8;
     const auto max_elements = (std::size_t)1e8;
 
-    std::default_random_engine generator;
+    std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
     std::vector<QueueElement> elements(max_elements);
@@ -242,7 +242,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     const auto max_value = (std::size_t)1e8;
     const auto max_elements = (std::size_t)1e8;
 
-    std::default_random_engine generator;
+    std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
