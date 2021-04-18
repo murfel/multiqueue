@@ -7,8 +7,8 @@
 
 #include "dijkstra.h"
 
-using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, DummyState &)>, std::string>;
-using BindedImpl = std::pair<std::function<DistsAndStatistics(DummyState &)>, std::string>;
+using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, Timer &)>, std::string>;
+using BindedImpl = std::pair<std::function<DistsAndStatistics(Timer &)>, std::string>;
 
 class Config {
 public:
@@ -28,7 +28,7 @@ static void bm_benchmark(benchmark::State& state, const BindedImpl & impl) {
     for (auto _ : state) {
         (void) _;
         state.PauseTiming();
-        DummyState ds(&state);
+        Timer ds(&state);
         impl.first(ds);
         state.ResumeTiming();
     }
@@ -123,7 +123,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
     if (run_seq) {
-        auto sequential_dijkstra = [](const AdjList &graph, DummyState& state) {
+        auto sequential_dijkstra = [](const AdjList &graph, Timer& state) {
             return calc_dijkstra_sequential(graph, state);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
@@ -133,7 +133,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         int size_multiple = param.second;
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         impls.emplace_back(
-                [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, DummyState& state) {
+                [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, Timer& state) {
                     return calc_dijkstra(graph, num_threads, size_multiple, one_queue_reserve_size, state);
                 },
                 impl_name);
@@ -145,7 +145,7 @@ std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, con
     std::vector<BindedImpl> binded_impls;
     for (const auto & impl : impls) {
         binded_impls.emplace_back(
-                [&impl, &graph](DummyState & state) { return impl.first(graph, state); }, impl.second);
+                [&impl, &graph](Timer & state) { return impl.first(graph, state); }, impl.second);
     }
     return binded_impls;
 }
@@ -172,7 +172,7 @@ void run(const std::vector<BindedImpl>& impls) {
         const auto & f = impl.first;
         const auto & impl_name = impl.second;
 
-        DummyState ds;
+        Timer ds;
         auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto time_ms = p.second;
 
@@ -188,7 +188,7 @@ void run_and_check(std::vector<BindedImpl> impls) {
         const auto & f = impls[i].first;
         const auto & impl_name = impls[i].second;
 
-        DummyState ds;
+        Timer ds;
         auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;

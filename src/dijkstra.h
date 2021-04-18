@@ -27,14 +27,14 @@
 
 using DistVector = std::vector<DistType>;
 
-class DummyState {
+class Timer {
 private:
     benchmark::State * state;
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     bool running = false;
     std::chrono::milliseconds total{0};
 public:
-    explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
+    explicit Timer(benchmark::State * state = nullptr) :state(state) {}
     void pause_timing() {
         if (state != nullptr) {
             state->PauseTiming();
@@ -112,7 +112,7 @@ public:
 
 inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
                                     std::vector<QueueElement> & vertexes,
-                                    DummyState& state, boost::barrier & barrier, std::size_t thread_id) {
+                                    Timer& state, boost::barrier & barrier, std::size_t thread_id) {
     barrier.wait();
     if (thread_id == 0) {
         state.resume_timing();
@@ -150,7 +150,7 @@ inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
 
 inline DistsAndStatistics calc_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   int size_multiple, std::size_t one_queue_reserve_size,
-                                                  DummyState& state) {
+                                                  Timer& state) {
     const Vertex start_vertex = 0;
     std::size_t num_vertexes = graph.size();
     Multiqueue queue = Multiqueue(num_threads, size_multiple, one_queue_reserve_size);
@@ -193,7 +193,7 @@ public:
     }
 };
 
-inline DistsAndStatistics calc_dijkstra_sequential(const AdjList & graph, DummyState& state) {
+inline DistsAndStatistics calc_dijkstra_sequential(const AdjList & graph, Timer& state) {
     const Vertex start_vertex = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, std::numeric_limits<int>::max());
