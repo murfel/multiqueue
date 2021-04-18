@@ -176,8 +176,8 @@ void run(const std::vector<BindedImpl>& impls) {
         auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto time_ms = p.second;
 
-        std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
-        std::cerr << ds.get_total().count() << " ms" << std::endl;
+        std::cerr << impl_name << " " << time_ms.count() << " ms ";
+        std::cerr << "(clean time: " << ds.get_total().count() << " ms)" << std::endl;
     }
 }
 
