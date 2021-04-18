@@ -12,10 +12,10 @@ TEST(Multiqueue, Simple) {
     QueueElement * element;
     for (std::size_t i = 0; i < 10; i++) {
         element = multiqueue.pop();
-        if (element != &EMPTY_ELEMENT) {
+        if (element != &empty_element) {
             break;
         }
     }
-    ASSERT_NE(element, &EMPTY_ELEMENT);
+    ASSERT_NE(element, &empty_element);
     ASSERT_EQ(dists[0], element->get_dist());
 }

@@ -9,7 +9,7 @@ TEST(Dijkstra, Minimized) {
     graph[1] = {{2, 2}};
 
     QueueFactory q = [](){ return std::make_unique<MultiQueue>(1, 2, 1); };
-    SsspDijkstraDistsAndStatistics x = calc_sssp_dijkstra(graph, 1, q);
+    DistsAndStatistics x = calc_dijkstra(graph, 1, q);
 
     DistVector expected = {0, 1, 3};
     DistVector dists = x.get_dists();
@@ -26,7 +26,7 @@ TEST(Dijkstra, Simple) {
     graph[2] = {{6, 2}, {7, 4}, {8, 5}};
 
     QueueFactory q = [](){ return std::make_unique<MultiQueue>(1, 2, 1); };
-    SsspDijkstraDistsAndStatistics x = calc_sssp_dijkstra(graph, 1, q);
+    DistsAndStatistics x = calc_dijkstra(graph, 1, q);
 
     DistVector expected = {0, 2, 4, 3, 5, 6, 6, 8, 9, INT_MAX};
     DistVector dists = x.get_dists();

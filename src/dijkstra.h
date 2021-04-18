@@ -35,7 +35,7 @@ private:
     std::chrono::milliseconds total{0};
 public:
     explicit DummyState(benchmark::State * state = nullptr) : state(state) {}
-    void PauseTiming() {
+    void pause_timing() {
         if (state != nullptr) {
             state->PauseTiming();
         } else {
@@ -47,7 +47,7 @@ public:
             running = false;
         }
     }
-    void ResumeTiming() {
+    void resume_timing() {
         if (state != nullptr) {
             state->ResumeTiming();
         } else {
@@ -82,20 +82,20 @@ public:
 
 using AdjList = std::vector<std::vector<Edge>>;
 
-class SsspDijkstraDistsAndStatistics {
+class DistsAndStatistics {
 private:
     DistVector dists;
     DistVector vertex_pulls_counts;
     std::size_t num_pushes{};
     std::vector<std::size_t> max_queue_sizes;
 public:
-    SsspDijkstraDistsAndStatistics(
+    DistsAndStatistics(
             DistVector dists, DistVector vertex_pulls_counts, size_t num_pushes,
             std::vector<std::size_t> max_queue_sizes) :
             dists(std::move(dists)), vertex_pulls_counts(std::move(vertex_pulls_counts)), num_pushes(num_pushes),
             max_queue_sizes(std::move(max_queue_sizes)) {}
-    explicit SsspDijkstraDistsAndStatistics(DistVector dists) : dists(std::move(dists)) {};
-    SsspDijkstraDistsAndStatistics() = default;
+    explicit DistsAndStatistics(DistVector dists) :dists(std::move(dists)) {};
+    DistsAndStatistics() = default;
     const DistVector &get_dists() const {
         return dists;
     }
@@ -115,14 +115,14 @@ inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
                                     DummyState& state, boost::barrier & barrier, std::size_t thread_id) {
     barrier.wait();
     if (thread_id == 0) {
-        state.ResumeTiming();
+        state.resume_timing();
     }
     barrier.wait();
 
     while (true) {
         QueueElement * elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
-        if (elem == &EMPTY_ELEMENT) {
+        if (elem == &empty_element) {
 //            std::cerr << "bye" << std::endl;
             break;
         }
@@ -143,15 +143,15 @@ inline void dijkstra_thread_routine(const AdjList & graph, Multiqueue & queue,
 
     barrier.wait();
     if (thread_id == 0) {
-        state.PauseTiming();
+        state.pause_timing();
     }
     barrier.wait();
 }
 
-inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
+inline DistsAndStatistics calc_dijkstra(const AdjList & graph, std::size_t num_threads,
                                                   int size_multiple, std::size_t one_queue_reserve_size,
                                                   DummyState& state) {
-    const Vertex START_VERTEX = 0;
+    const Vertex start_vertex = 0;
     std::size_t num_vertexes = graph.size();
     Multiqueue queue = Multiqueue(num_threads, size_multiple, one_queue_reserve_size);
     std::vector<QueueElement> vertexes;
@@ -159,29 +159,29 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, 
     for (std::size_t i = 0; i < num_vertexes; i++) {
         vertexes.emplace_back(i);
     }
-    queue.push_singlethreaded(&vertexes[START_VERTEX], 0);
+    queue.push_singlethreaded(&vertexes[start_vertex], 0);
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes),
                              std::ref(state), std::ref(barrier), thread_id);
 #ifdef __linux__
-        cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(thread_id, &cpuset);
-            int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
+        cpu_set_t cpu_set;
+            CPU_ZERO(&cpu_set);
+            CPU_SET(thread_id, &cpu_set);
+            int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpu_set);
             (void)rc;
 #endif
     }
     for (std::thread & thread : threads) {
         thread.join();
     }
-    state.PauseTiming();
+    state.pause_timing();
     DistVector dists(num_vertexes);
     for (std::size_t i = 0; i < num_vertexes; i++) {
         dists[i] = vertexes[i].get_dist();
     }
-    return SsspDijkstraDistsAndStatistics(dists);
+    return DistsAndStatistics(dists);
 }
 
 class SimpleQueueElement {
@@ -194,15 +194,15 @@ public:
     }
 };
 
-inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, DummyState& state) {
-    const Vertex START_VERTEX = 0;
+inline DistsAndStatistics calc_dijkstra_sequential(const AdjList & graph, DummyState& state) {
+    const Vertex start_vertex = 0;
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, std::numeric_limits<int>::max());
     std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<SimpleQueueElement> q;
-    dists[START_VERTEX] = 0;
-    q.emplace(START_VERTEX, 0);
-    state.ResumeTiming();
+    dists[start_vertex] = 0;
+    q.emplace(start_vertex, 0);
+    state.resume_timing();
     for (std::size_t i = 0; i < num_vertexes; i++) {
         while (!q.empty() && removed_from_queue[q.top().vertex]) {
             q.pop();
@@ -223,8 +223,8 @@ inline SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjLis
             }
         }
     }
-    state.PauseTiming();
-    return SsspDijkstraDistsAndStatistics(dists);
+    state.pause_timing();
+    return DistsAndStatistics(dists);
 }
 
 #endif //MULTIQUEUE_DIJKSTRA_H

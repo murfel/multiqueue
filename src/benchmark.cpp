@@ -7,8 +7,8 @@
 
 #include "dijkstra.h"
 
-using Implementation = std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &, DummyState &)>, std::string>;
-using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics(DummyState &)>, std::string>;
+using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, DummyState &)>, std::string>;
+using BindedImpl = std::pair<std::function<DistsAndStatistics(DummyState &)>, std::string>;
 
 class Config {
 public:
@@ -24,7 +24,7 @@ public:
     bool run_seq;
 };
 
-static void BM_benchmark(benchmark::State& state, const BindedImpl & impl) {
+static void bm_benchmark(benchmark::State& state, const BindedImpl & impl) {
     for (auto _ : state) {
         (void) _;
         state.PauseTiming();
@@ -61,16 +61,16 @@ std::chrono::milliseconds measure_time(const std::function<void()>& func_to_test
 }
 
 AdjList read_edges_into_adj_list(std::istream & istream) {
-    const int VERTEX_NUMERATION_OFFSET = -1;
-    std::size_t num_verticies, num_edges;
-    istream >> num_verticies >> num_edges;
-    AdjList adj_list(num_verticies);
+    const int vertex_numeration_offset = -1;
+    std::size_t num_vertices, num_edges;
+    istream >> num_vertices >> num_edges;
+    AdjList adj_list(num_vertices);
     for (std::size_t i = 0; i < num_edges; i++) {
         Vertex from, to;
         DistType weight;
         istream >> from >> to >> weight;
         if (weight <= 0) continue;
-        adj_list[from + VERTEX_NUMERATION_OFFSET].emplace_back(to + VERTEX_NUMERATION_OFFSET, weight);
+        adj_list[from + vertex_numeration_offset].emplace_back(to + vertex_numeration_offset, weight);
     }
     return adj_list;
 }
@@ -124,7 +124,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
     std::vector<Implementation> impls;
     if (run_seq) {
         auto sequential_dijkstra = [](const AdjList &graph, DummyState& state) {
-            return calc_sssp_dijkstra_sequential(graph, state);
+            return calc_dijkstra_sequential(graph, state);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
     }
@@ -134,7 +134,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         impls.emplace_back(
                 [num_threads, size_multiple, one_queue_reserve_size] (const AdjList & graph, DummyState& state) {
-                    return calc_sssp_dijkstra(graph, num_threads, size_multiple, one_queue_reserve_size, state);
+                    return calc_dijkstra(graph, num_threads, size_multiple, one_queue_reserve_size, state);
                 },
                 impl_name);
     }
@@ -173,7 +173,7 @@ void run(const std::vector<BindedImpl>& impls) {
         const auto & impl_name = impl.second;
 
         DummyState ds;
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f, &ds] { return f(ds); });
+        auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto time_ms = p.second;
 
         std::cerr << impl_name << " " << time_ms.count() << " ms" << std::endl;
@@ -189,7 +189,7 @@ void run_and_check(std::vector<BindedImpl> impls) {
         const auto & impl_name = impls[i].second;
 
         DummyState ds;
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>([&f, &ds] { return f(ds); });
+        auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
@@ -214,12 +214,12 @@ void run_and_check(std::vector<BindedImpl> impls) {
 
 void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num_ops) {
     const auto max_value = (std::size_t)1e8;
-    const auto max_elems = (std::size_t)1e8;
+    const auto max_elements = (std::size_t)1e8;
 
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
-    std::vector<QueueElement> elements(max_elems);
+    std::vector<QueueElement> elements(max_elements);
     barrier.wait();
     auto start = std::chrono::high_resolution_clock::now();
     int subticks = 1000;
@@ -240,13 +240,13 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     const auto init_size = (std::size_t)1e6;
     const auto max_value = (std::size_t)1e8;
-    const auto max_elems = (std::size_t)1e8;
+    const auto max_elements = (std::size_t)1e8;
 
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
-    Multiqueue q(num_threads, size_multiple, max_elems);
+    Multiqueue q(num_threads, size_multiple, max_elements);
     std::vector<QueueElement> init_elements(init_size);
     for (auto & init_element : init_elements) {
         q.push(&init_element, dice());
@@ -257,10 +257,10 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]));
         #ifdef __linux__
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(thread_id, &cpuset);
-        int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
+        cpu_set_t cpu_set;
+        CPU_ZERO(&cpu_set);
+        CPU_SET(thread_id, &cpu_set);
+        int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpu_set);
         (void)rc;
         #endif
     }
@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
         run_and_check(binded_impls);
     } else {
         for (const auto & impl : binded_impls) {
-            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond)
+            benchmark::RegisterBenchmark(impl.second.c_str(), &bm_benchmark, impl)->Unit(benchmark::kMillisecond)
                     ->MeasureProcessCPUTime()->UseRealTime()->Repetitions(1);
         }
         int pseudo_argc = 1;

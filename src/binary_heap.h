@@ -79,15 +79,15 @@ public:
     }
 };
 
-static const DistType EMPTY_ELEMENT_DIST = -1;
-static const QueueElement EMPTY_ELEMENT(0, EMPTY_ELEMENT_DIST);
+static const DistType empty_element_dist = -1;
+static const QueueElement empty_element(0, empty_element_dist);
 
 class BinaryHeap {
 private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
     Spinlock spinlock;
-    std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&EMPTY_ELEMENT)};
+    std::atomic<QueueElement *> top_element{const_cast<QueueElement *>(&empty_element)};
 
     void swap(size_t i, size_t j) {
         std::swap(elements[i], elements[j]);
@@ -110,7 +110,7 @@ private:
     }
     void sift_down(size_t i) {
         if (size == 0) {
-            top_element.store(const_cast<QueueElement *>(&EMPTY_ELEMENT), std::memory_order_relaxed);
+            top_element.store(const_cast<QueueElement *>(&empty_element), std::memory_order_relaxed);
             return;
         }
         while (get_left_child(i) < size) {
@@ -145,7 +145,7 @@ public:
         return size == 0;
     }
     QueueElement * top() const {
-        return empty() ? const_cast<QueueElement *>(&EMPTY_ELEMENT) : elements.front();
+        return empty() ? const_cast<QueueElement *>(&empty_element) : elements.front();
     }
     QueueElement * top_relaxed() const {
         return top_element.load(std::memory_order_relaxed);

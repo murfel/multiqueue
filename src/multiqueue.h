@@ -14,10 +14,10 @@
 
 #include "binary_heap.h"
 
-// Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
+// Set DIST_PADDING and QUEUE_PADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
 
-const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
+const std::size_t dummy_iterations_before_exiting = 100;
 
 template<class T>
 struct padded {
@@ -48,14 +48,14 @@ inline uint64_t random_fnv1a(uint64_t & seed) {
 
 class Multiqueue {
 private:
-    std::vector<QUEUEPADDING<BinaryHeap>> queues;
+    std::vector<QUEUE_PADDING<BinaryHeap>> queues;
     const std::size_t num_queues;
 public:
     Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :
             num_queues(num_threads * size_multiple) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            QUEUEPADDING<BinaryHeap> p;
+            QUEUE_PADDING<BinaryHeap> p;
             p.first = BinaryHeap(one_queue_reserve_size);
             queues.push_back(p);
         }
@@ -74,12 +74,12 @@ public:
 
     // element->dist should be > new_dist, otherwise nothing happens
     void push(QueueElement * element, int new_dist) {
-        // we can change dist only once the corresponding binheap is locked
+        // we can change dist only once the corresponding binary heap is locked
         while (true) {
-            int EMPTY_Q_ID = -1;
+            int empty_q_id = -1;
             int q_id = element->get_q_id_relaxed();
             bool adding = false;
-            if (q_id == EMPTY_Q_ID) {
+            if (q_id == empty_q_id) {
                 adding = true;
                 q_id = gen_random_queue_index();
             }
@@ -96,13 +96,13 @@ public:
                 }
                 queue.unlock();
                 break;
-            } else if (adding or element->get_q_id_relaxed() == EMPTY_Q_ID) {
-                // 0, aka element->q_id was EMPTY_Q_ID;
+            } else if (adding or element->get_q_id_relaxed() == empty_q_id) {
+                // 0, aka element->q_id was empty_q_id;
                 // OR 2, aka someone popped the element, but since we already locked this queue, push to it
                 // OR this thread didn't see that q_id was changed to -1,
                 //     but now it sees that someone popped from this queue under the queue lock's memory barrier.
                 element->empty_q_id_lock();
-                if (element->get_q_id_relaxed() != EMPTY_Q_ID) {
+                if (element->get_q_id_relaxed() != empty_q_id) {
                     // Either someone pushed right before this thread, or this thread didn't see that it was pushed
                     // a long time ago, but now it sees the last q_id assigned under the empty lock's memory barrier.
                     element->empty_q_id_unlock();
@@ -130,7 +130,7 @@ public:
             q.lock();
             if (q.empty()) {
                 q.unlock();
-                return const_cast<QueueElement *>(&EMPTY_ELEMENT);
+                return const_cast<QueueElement *>(&empty_element);
             }
             QueueElement * e = q.top();
             e->set_q_id_relaxed(-1);
@@ -141,7 +141,7 @@ public:
 
         while (true) {
             bool seen_progress_by_other_threads = false;
-            for (std::size_t dummy_i = 0; dummy_i < DUMMY_ITERATION_BEFORE_EXITING; dummy_i++) {
+            for (std::size_t dummy_i = 0; dummy_i < dummy_iterations_before_exiting; dummy_i++) {
                 std::size_t i, j;
                 i = gen_random_queue_index();
                 do {
@@ -154,14 +154,14 @@ public:
                 QueueElement *e1 = q1.top_relaxed();
                 QueueElement *e2 = q2.top_relaxed();
 
-                if (e1 == &EMPTY_ELEMENT && e2 == &EMPTY_ELEMENT) {
+                if (e1 == &empty_element && e2 == &empty_element) {
                     continue;
                 }
 
                 auto * q_ptr = &q1;
                 QueueElement *e = e1;
                 // reversed comparator because std::priority_queue is a max queue
-                if (e1 == &EMPTY_ELEMENT || (e2 != &EMPTY_ELEMENT && *e1 < *e2)) {
+                if (e1 == &empty_element || (e2 != &empty_element && *e1 < *e2)) {
                     q_ptr = &q2;
                     e = e2;
                 }
@@ -180,7 +180,7 @@ public:
             if (seen_progress_by_other_threads) {
                 continue;
             }
-            return const_cast<QueueElement *>(&EMPTY_ELEMENT);
+            return const_cast<QueueElement *>(&empty_element);
         }
     }
 };

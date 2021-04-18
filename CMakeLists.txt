@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.7)
 project(multiqueue)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Werror -pedantic -pthread -lnuma -DPADDING=128 -DALIGNMENT=128 -DDISTPADDING=not_padded -DQUEUEPADDING=padded")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Werror -pedantic -pthread -lnuma -DPADDING=128 -DALIGNMENT=128 -DDIST_PADDING=not_padded -DQUEUE_PADDING=padded")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXEON -DR730 -DCOMPACT -DUSE_CLH_LOCKS -D_GNU_SOURCE -DADD_PADDING")

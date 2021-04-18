@@ -164,6 +164,6 @@ The test directory contains smoke tests for BinaryHeap, Multiqueue, and parallel
 
 ### Legacy
 
-The Dijkstra header contains some obsolete parts such as the SsspDijkstraDistsAndStatistics return type. It was earlier used to return statistics calculated during the computations, such as number of pushes, maximal queue sizes, etc. Hovewer, it slowed down the computation and was removed.
+The Dijkstra header contains some obsolete parts such as the DistsAndStatistics return type. It was earlier used to return statistics calculated during the computations, such as number of pushes, maximal queue sizes, etc. Hovewer, it slowed down the computation and was removed.
 
 The other obsolete part is the `AbstractQueue` class extended by `RegularPriorityQueue`, `BlockingPriorityQueue`, and `MultiQueue` classes which was introduced to compare the performance of Multiqueue on one or a few threads and also check the correctness of the parallel Dijkstra implementation independent of Multiqueue correctness.
