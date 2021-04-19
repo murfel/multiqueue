@@ -10,7 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXEON -DR730 -DCOMPACT -DUSE_CLH_LOCKS 
 set(BOOST_ROOT "~/boost/")
 find_package(Boost REQUIRED COMPONENTS thread)
 
-add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h)
+add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/utils.h)
 target_link_libraries(mq PRIVATE benchmark Boost::thread)
 target_link_directories(mq PRIVATE ~/benchmark/build/src)
 target_include_directories(mq PRIVATE ~/benchmark/include)

@@ -6,6 +6,7 @@
 #include <boost/thread/barrier.hpp>
 
 #include "dijkstra.h"
+#include "utils.h"
 
 using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, Timer &)>, std::string>;
 using BindedImpl = std::pair<std::function<DistsAndStatistics(Timer &)>, std::string>;
@@ -256,13 +257,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]));
-        #ifdef __linux__
-        cpu_set_t cpu_set;
-        CPU_ZERO(&cpu_set);
-        CPU_SET(thread_id, &cpu_set);
-        int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpu_set);
-        (void)rc;
-        #endif
+        pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
         thread.join();

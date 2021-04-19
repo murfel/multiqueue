@@ -19,6 +19,7 @@
 #include <boost/thread/barrier.hpp>
 
 #include "multiqueue.h"
+#include "utils.h"
 
 #ifdef __linux__
 #include <pthread.h>
@@ -165,13 +166,7 @@ inline DistsAndStatistics calc_dijkstra(const AdjList & graph, std::size_t num_t
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(dijkstra_thread_routine, std::cref(graph), std::ref(queue), std::ref(vertexes),
                              std::ref(state), std::ref(barrier), thread_id);
-#ifdef __linux__
-        cpu_set_t cpu_set;
-            CPU_ZERO(&cpu_set);
-            CPU_SET(thread_id, &cpu_set);
-            int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpu_set);
-            (void)rc;
-#endif
+        pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
         thread.join();
