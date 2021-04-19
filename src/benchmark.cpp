@@ -213,9 +213,9 @@ void run_and_check(std::vector<BindedImpl> impls) {
     }
 }
 
-void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num_ops) {
+void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num_ops, int thread_id) {
     const auto max_value = (std::size_t)1e8;
-    const auto max_elements = (std::size_t)1e8;
+    const auto max_elements = (std::size_t)1e7;
 
     std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
@@ -235,19 +235,24 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
             break;
         }
     }
+    if (thread_id == 0 && num_ops == elements.size() * 2) {
+        std::cerr << "WRONG results: Ran out of elements before time is up" << std::endl;
+    }
     barrier.wait();
 }
 
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     const auto init_size = (std::size_t)1e6;
     const auto max_value = (std::size_t)1e8;
-    const auto max_elements = (std::size_t)1e8;
+    const std::size_t  num_binheaps = num_threads * size_multiple;
+    const auto one_queue_reserve_size = init_size / num_binheaps + 1'000;
+    std::cerr << "one_queue_reserve_size " << one_queue_reserve_size << std::endl;
 
     std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
-    Multiqueue q(num_threads, size_multiple, max_elements);
+    Multiqueue q(num_threads, size_multiple, one_queue_reserve_size);
     std::vector<QueueElement> init_elements(init_size);
     for (auto & init_element : init_elements) {
         q.push(&init_element, dice());
@@ -256,7 +261,8 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple) {
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
-        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]));
+        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier),
+                std::ref(num_ops_counters[thread_id]), thread_id);
         pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
