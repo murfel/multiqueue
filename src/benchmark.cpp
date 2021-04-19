@@ -291,7 +291,7 @@ int main(int argc, char** argv) {
     } else {
         for (const auto & impl : binded_impls) {
             benchmark::RegisterBenchmark(impl.second.c_str(), &bm_benchmark, impl)->Unit(benchmark::kMillisecond)
-                    ->MeasureProcessCPUTime()->UseRealTime()->Repetitions(1);
+                    ->MeasureProcessCPUTime()->Iterations(3);
         }
         int pseudo_argc = 1;
         benchmark::Initialize(&pseudo_argc, argv);
