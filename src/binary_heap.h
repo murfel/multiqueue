@@ -131,14 +131,14 @@ private:
     static inline size_t get_left_child(size_t i) { return i * 2 + 1; }
     static inline size_t get_right_child(size_t i) { return i * 2 + 2; }
 public:
-    explicit BinaryHeap(size_t reserve_size = 256) {
-        elements.reserve(reserve_size);
-        elements.resize(1);
+    explicit BinaryHeap(size_t reserve_size) {
+        elements.resize(reserve_size);
     }
-    BinaryHeap(const BinaryHeap & o) : elements(std::vector<QueueElement *>(o.elements.capacity())) {}
-    BinaryHeap& operator=(const BinaryHeap & o) {
-        std::size_t reserve_size = o.elements.capacity();
-        elements.reserve(reserve_size);
+    BinaryHeap(const BinaryHeap & o) = delete;
+    BinaryHeap(BinaryHeap&& o) noexcept : elements(std::move(o.elements)) {};
+    BinaryHeap& operator=(const BinaryHeap & o) = delete;
+    BinaryHeap& operator=(BinaryHeap && o) noexcept {
+        elements = std::move(o.elements);
         return *this;
     }
     bool empty() const {
@@ -159,7 +159,7 @@ public:
     void push(QueueElement * element) {
         size++;
         if (size == elements.size()) {
-            elements.resize(elements.size() * 4);
+            throw std::logic_error("BinaryHeap reserve size is exceeded");
         }
         set(size - 1, element);
         sift_up(size - 1);

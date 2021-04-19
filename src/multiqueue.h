@@ -23,6 +23,7 @@ template<class T>
 struct padded {
     T first;
     volatile char pad[PADDING]{};
+    explicit padded(std::size_t reserve_size) : first(BinaryHeap(reserve_size)) {}
 };
 
 template<class T>
@@ -55,9 +56,7 @@ public:
             num_queues(num_threads * size_multiple) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            QUEUE_PADDING<BinaryHeap> p;
-            p.first = BinaryHeap(one_queue_reserve_size);
-            queues.push_back(p);
+            queues.emplace_back(one_queue_reserve_size);
         }
     }
     std::size_t gen_random_queue_index() const {
