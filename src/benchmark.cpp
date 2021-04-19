@@ -251,7 +251,7 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
     barrier.wait();
 }
 
-void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
+uint64_t throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
     const auto init_size = (std::size_t)1e6;
     const auto max_value = (std::size_t)1e8;
     const std::size_t  num_binheaps = num_threads * size_multiple;
@@ -281,15 +281,22 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
 //    for (uint64_t num_ops: num_ops_counters) {
 //        std::cerr << num_ops << std::endl;
 //    }
-    std::cerr << std::accumulate(num_ops_counters.begin(), num_ops_counters.end(), 0ULL) << std::endl;
+    return std::accumulate(num_ops_counters.begin(), num_ops_counters.end(), 0ULL);
 }
 
 int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
     if (true) {
+        const int num_runs = 3;
         for (auto & param: config.params) {
 //            std::cerr << param.first << " " << param.second << std::endl;
-            throughput_benchmark(param.first, param.second, true);
+            uint64_t sum = 0;
+            for (int i = 0; i < num_runs; i++) {
+                uint64_t mops = throughput_benchmark(param.first, param.second, false);
+                sum += mops;
+            }
+            sum /= num_runs;
+            std::cerr << sum << std::endl;
         }
         return 0;
     }
