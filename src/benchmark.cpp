@@ -48,16 +48,16 @@ std::vector<std::pair<int, int>> read_params(const std::string & params_filename
 
 template<class R>
 std::pair<R, std::chrono::milliseconds> measure_time(std::function<R()> func_to_test) {
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
     R r = func_to_test();
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::steady_clock::now();
     return {r, std::chrono::duration_cast<std::chrono::milliseconds>(end - start)};
 }
 
 std::chrono::milliseconds measure_time(const std::function<void()>& func_to_test) {
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
     func_to_test();
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 }
 
@@ -222,7 +222,7 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
     auto dice = [&distribution, &generator] { return distribution(generator); };
     std::vector<QueueElement> elements(max_elements);
     barrier.wait();
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
     int subticks = 1000;
     for (size_t i = 0; i < elements.size(); i++) {
         for (int j = 0; j < subticks; i++, j++) {
@@ -230,7 +230,7 @@ void ops_thread_routine(Multiqueue & q, boost::barrier & barrier, uint64_t & num
             q.pop();
             num_ops += 2;
         }
-        auto end = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() > 1000) {
             break;
         }
