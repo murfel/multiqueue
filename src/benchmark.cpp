@@ -1,8 +1,9 @@
 #include <benchmark/benchmark.h>
 #include <iomanip>
 
+#include <boost/thread/barrier.hpp>
+
 #include "dijkstra.h"
-#include "thread_barrier.h"
 
 using Implementation = std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>;
 using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics()>, std::string>;
@@ -170,7 +171,7 @@ void check(std::vector<BindedImpl> impls) {
     }
 }
 
-void ops_thread_routine(Multiqueue<QueueElement> & q, thread_barrier & barrier, uint64_t & num_ops, bool monotonic) {
+void ops_thread_routine(Multiqueue<QueueElement> & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
     const std::size_t max_value = (std::size_t)1e8;
     const std::size_t max_elements = (std::size_t)1e8;
 
@@ -243,7 +244,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     }
     std::vector<uint64_t> num_ops_counters(num_threads);
     std::vector<std::thread> threads;
-    thread_barrier barrier(num_threads);
+    boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
         #ifdef __linux__

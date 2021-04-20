@@ -7,7 +7,7 @@ add_subdirectory(benchmark)
 set(BOOST_ROOT "~/boost/")
 find_package(Boost REQUIRED COMPONENTS thread)
 
-add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/thread_barrier.h)
+add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h)
 target_link_libraries(mq PRIVATE benchmark)
 target_link_directories(mq PRIVATE ~/benchmark/build/src)
 target_include_directories(mq PRIVATE ~/benchmark/include)
