@@ -2,6 +2,7 @@
 #include <iomanip>
 
 #include <boost/thread/barrier.hpp>
+#include <utility>
 
 #include "dijkstra.h"
 
@@ -10,9 +11,11 @@ using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics()>, st
 
 class Config {
 public:
-    Config(const std::vector<std::pair<int, int>> &params, const AdjList &graph, size_t one_queue_reserve_size,
-           bool check, bool run_seq) : params(params), graph(graph), one_queue_reserve_size(one_queue_reserve_size),
-                                       check(check), run_seq(run_seq || check) {}
+    Config(std::vector<std::pair<int, int>> params, AdjList graph, size_t one_queue_reserve_size,
+           bool check, bool run_seq)
+           : params(std::move(params)), graph(std::move(graph)),
+             one_queue_reserve_size(one_queue_reserve_size),
+             check(check), run_seq(run_seq || check) {}
     std::vector<std::pair<int, int>> params;
     AdjList graph;
     std::size_t one_queue_reserve_size;
@@ -44,7 +47,7 @@ std::pair<R, std::chrono::milliseconds> measure_time(std::function<R()> func_to_
     return {r, std::chrono::duration_cast<std::chrono::milliseconds>(end - start)};
 }
 
-std::chrono::milliseconds measure_time(std::function<void()> func_to_test) {
+std::chrono::milliseconds measure_time(const std::function<void()>& func_to_test) {
     auto start = std::chrono::high_resolution_clock::now();
     func_to_test();
     auto end = std::chrono::high_resolution_clock::now();
@@ -66,7 +69,7 @@ AdjList read_edges_into_adj_list(std::istream & istream) {
     return adj_list;
 }
 
-AdjList read_input(std::string filename) {
+AdjList read_input(const std::string& filename) {
     std::ifstream input(filename + ".in");
     std::cerr << "Reading " << filename << ": ";
     auto p = measure_time<AdjList>([& input]() { return read_edges_into_adj_list(input); });
@@ -96,7 +99,7 @@ Config process_input(int argc, char** argv) {
     return Config(params, graph, one_queue_reserve_size, check, run_seq);
 }
 
-std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params, bool run_seq,
+std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>& params, bool run_seq,
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
     if (run_seq) {
@@ -118,10 +121,10 @@ std::vector<Implementation> create_impls(std::vector<std::pair<int, int>> params
     return impls;
 }
 
-std::vector<BindedImpl> bind_impls(std::vector<Implementation> impls, const AdjList &graph) {
+std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, const AdjList &graph) {
     std::vector<BindedImpl> binded_impls;
     for (const auto & impl : impls) {
-        binded_impls.push_back(std::make_pair(std::bind(impl.first, graph), impl.second));
+        binded_impls.emplace_back([&impl, &graph] { return impl.first(graph); }, impl.second);
     }
     return binded_impls;
 }
@@ -172,14 +175,14 @@ void check(std::vector<BindedImpl> impls) {
 }
 
 void ops_thread_routine(Multiqueue<QueueElement> & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
-    const std::size_t max_value = (std::size_t)1e8;
-    const std::size_t max_elements = (std::size_t)1e8;
+    const auto max_value = (std::size_t)1e8;
+    const auto max_elements = (std::size_t)1e8;
 
     barrier.wait();
 if (monotonic) {
-    std::default_random_engine generator;
+    std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<DistType> distribution(1, 100);
-    auto dice = std::bind ( distribution, generator );
+    auto dice = [&distribution, &generator] { return distribution(generator); };
     std::vector<DistType> elements;
     elements.reserve(max_elements);
     for (size_t i = 0; i < max_elements; i++) {
@@ -203,9 +206,9 @@ if (monotonic) {
     return;
 }
 {
-    std::default_random_engine generator;
+    std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<DistType> distribution(0, max_value);
-    auto dice = std::bind ( distribution, generator );
+    auto dice = [&distribution, &generator] { return distribution(generator); };
     std::vector<DistType> elements;
     elements.reserve(max_elements);
     for (size_t i = 0; i < max_elements; i++) {
@@ -230,13 +233,13 @@ if (monotonic) {
 }
 
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
-    const std::size_t init_size = (std::size_t)1e6;
-    const std::size_t max_value = (std::size_t)1e8;
-    const std::size_t max_elems = (std::size_t)1e8;
+    const auto init_size = (std::size_t)1e6;
+    const auto max_value = (std::size_t)1e8;
+    const auto max_elems = (std::size_t)1e8;
 
-    std::default_random_engine generator;
+    std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
-    auto dice = std::bind ( distribution, generator );
+    auto dice = [&distribution, &generator] { return distribution(generator); };
 
     Multiqueue<QueueElement> q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
     for (std::size_t i = 0; i < init_size; i++) {

@@ -58,7 +58,7 @@ template <class T>
 class LockablePriorityQueueWithEmptyElement {
 private:
     std::atomic<T> top_element{empty_element};
-    volatile char my_padding[128];
+    volatile char my_padding[128]{};
     ReservablePriorityQueue<T> queue;
     T empty_element;
     std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
@@ -128,7 +128,7 @@ public:
 template<class T>
 class Multiqueue {
 private:
-    std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues;
+    std::vector<QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>>> queues{};
     const std::size_t num_queues;
     const T empty_element;
     std::atomic<std::size_t> num_threads{0};
