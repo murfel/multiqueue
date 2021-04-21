@@ -6,7 +6,7 @@
 #include <queue>
 #include <cstring>
 #include <fstream>
-#include <climits>
+#include <limits>
 #include <atomic>
 #include <functional>
 #include <utility>
@@ -242,7 +242,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     auto queue_ptr = queue_factory();
     AbstractQueue<QueueElement> & queue = *queue_ptr;
     queue.push({start_vertex, 0});
-    AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, INT_MAX);
+    AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
     atomic_dists[0].first = 0;
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
@@ -265,7 +265,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex = 0) {
     std::size_t num_vertexes = graph.size();
-    DistVector dists(num_vertexes, INT_MAX);
+    DistVector dists(num_vertexes, std::numeric_limits<int>::max());
     std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<QueueElement> q;
     dists[start_vertex] = 0;
