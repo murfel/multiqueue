@@ -16,6 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include "multiqueue.h"
+#include "cached_random.h"
 
 
 #ifdef __linux__
@@ -104,7 +105,9 @@ public:
 };
 
 void thread_routine(const AdjList & graph, Multiqueue<QueueElement> & queue, AtomicDistVector & dists,
-        AtomicDistVector & vertex_pull_counts, bool collect_statistics) {
+        AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads) {
+    cached_random<uint8_t>::next(num_threads * 4, 100'000);
+
     while (true) {
         QueueElement elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
@@ -160,6 +163,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
         const QueueFactory & queue_factory, Vertex start_vertex = 0) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
+    cached_random<uint8_t>::next(num_threads * 4, 100'000'000);
     Multiqueue<QueueElement> & queue = *queue_ptr;
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
@@ -167,7 +171,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     std::vector<std::thread> threads;
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_dists), false);
+                std::ref(atomic_dists), false, num_threads);
         #ifdef __linux__
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);

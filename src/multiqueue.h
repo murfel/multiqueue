@@ -13,10 +13,12 @@
 
 #include "boost/heap/d_ary_heap.hpp"
 
+#include "cached_random.h"
+
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
 
-const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
+const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100'000;
 
 template<class T>
 struct padded {
@@ -197,9 +199,8 @@ public:
             queues.emplace_back(LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element));
         }
     }
-    std::size_t gen_random_queue_index() {
-        thread_local uint64_t seed = 2758756369U + num_threads++;
-        return random_fnv1a(seed) % num_queues;
+    uint8_t gen_random_queue_index() {
+        return cached_random<uint8_t>::next();
     }
     void push(T value) {
         if (num_queues == 1) {
