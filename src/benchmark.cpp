@@ -5,9 +5,10 @@
 #include <utility>
 
 #include "dijkstra.h"
+#include "timer.h"
 
-using Implementation = std::pair<std::function<SsspDijkstraDistsAndStatistics(const AdjList &)>, std::string>;
-using BindedImpl = std::pair<std::function<SsspDijkstraDistsAndStatistics()>, std::string>;
+using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, timer &)>, std::string>;
+using BindedImpl = std::pair<std::function<DistsAndStatistics(timer &)>, std::string>;
 
 class Config {
 public:
@@ -24,8 +25,13 @@ public:
 };
 
 static void BM_benchmark(benchmark::State& state, const BindedImpl & impl) {
-    for (auto _ : state)
-        impl.first();
+    for (auto _ : state) {
+        (void) _;
+        state.PauseTiming();
+        timer timer(&state);
+        impl.first(timer);
+        state.ResumeTiming();
+    }
 }
 
 std::vector<std::pair<int, int>> read_params(const std::string & params_filename) {
@@ -103,8 +109,8 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
     if (run_seq) {
-        auto sequential_dijkstra = [](const AdjList &graph) {
-            return calc_sssp_dijkstra_sequential(graph);
+        auto sequential_dijkstra = [](const AdjList &graph, timer& timer) {
+            return calc_sssp_dijkstra_sequential(graph, 0, timer);
         };
         impls.emplace_back(sequential_dijkstra, "Sequential");
     }
@@ -115,8 +121,8 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
                 { return std::make_unique<Multiqueue<QueueElement>>
                 (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size); };
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        impls.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph)
-                { return calc_sssp_dijkstra(graph, num_threads, multi_queue_factory); }, impl_name);
+        impls.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph, timer& timer)
+                { return calc_sssp_dijkstra(graph, num_threads, multi_queue_factory, 0, timer); }, impl_name);
     }
     return impls;
 }
@@ -124,7 +130,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
 std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, const AdjList &graph) {
     std::vector<BindedImpl> binded_impls;
     for (const auto & impl : impls) {
-        binded_impls.emplace_back([&impl, &graph] { return impl.first(graph); }, impl.second);
+        binded_impls.emplace_back([&impl, &graph](timer& timer) { return impl.first(graph, timer); }, impl.second);
     }
     return binded_impls;
 }
@@ -152,7 +158,8 @@ void check(std::vector<BindedImpl> impls) {
         const auto & f = impls[i].first;
         const auto & impl_name = impls[i].second;
 
-        auto p = measure_time<SsspDijkstraDistsAndStatistics>(f);
+        timer timer;
+        auto p = measure_time<DistsAndStatistics>([&f, &timer] { return f(timer); });
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
@@ -286,7 +293,8 @@ int main(int argc, char** argv) {
         check(binded_impls);
     } else {
         for (const auto & impl : binded_impls) {
-            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl);
+            benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond)
+                    ->MeasureProcessCPUTime()->Iterations(3);
         }
         int pseudo_argc = 1;
         benchmark::Initialize(&pseudo_argc, argv);

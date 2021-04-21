@@ -20,6 +20,8 @@
 
 const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100'000;
 
+using RandomUintSize = uint16_t;
+
 template<class T>
 struct padded {
     T first;
@@ -199,8 +201,8 @@ public:
             queues.emplace_back(LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element));
         }
     }
-    uint8_t gen_random_queue_index() {
-        return cached_random<uint8_t>::next();
+    RandomUintSize gen_random_queue_index() {
+        return cached_random<RandomUintSize>::next();
     }
     void push(T value) {
         if (num_queues == 1) {
