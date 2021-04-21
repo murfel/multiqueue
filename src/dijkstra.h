@@ -109,7 +109,7 @@ void thread_routine(const AdjList & graph, Multiqueue<QueueElement> & queue, Ato
         AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads, timer& timer,
         int thread_id, boost::barrier& barrier) {
 
-    cached_random<RandomUintSize>::next(num_threads * 4, 100'000);
+    cached_random<RandomUintSize>::next(num_threads * 4, 1'000);
 
     barrier.wait();
     if (thread_id == 0) {
