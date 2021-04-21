@@ -171,14 +171,12 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
 void run(const std::vector<BindedImpl>& impls) {
     for (auto & impl : impls) {
         const auto & f = impl.first;
-        const auto & impl_name = impl.second;
 
         Timer ds;
         auto p = measure_time<DistsAndStatistics>([&f, &ds] { return f(ds); });
         auto time_ms = p.second;
 
-        std::cerr << impl_name << " " << time_ms.count() << " ms ";
-        std::cerr << "(clean time: " << ds.get_total().count() << " ms)" << std::endl;
+        std::cerr << ds.get_total().count() << std::endl;
     }
 }
 
@@ -194,8 +192,7 @@ void run_and_check(std::vector<BindedImpl> impls) {
         auto dists_and_statistics = p.first;
         auto time_ms = p.second;
 
-        std::cerr << impl_name << " " << time_ms.count() << " ms ";
-        std::cerr << "(clean time: " << ds.get_total().count() << " ms)" << std::endl;
+        std::cerr << ds.get_total().count() << std::endl;
         const DistVector &dists = dists_and_statistics.get_dists();
 
         bool mismatched = false;
@@ -208,7 +205,6 @@ void run_and_check(std::vector<BindedImpl> impls) {
         if (mismatched) {
             std::ofstream output(impl_name + ".out" + std::to_string(i));
             std::chrono::milliseconds elapsed = measure_time([&output, &dists]() { write_answer(output, dists); });
-            std::cerr << "Writing: " << elapsed.count() << " s" << std::endl;
         }
     }
 }
@@ -278,9 +274,6 @@ uint64_t throughput_benchmark(std::size_t num_threads, std::size_t size_multiple
     for (std::thread & thread : threads) {
         thread.join();
     }
-//    for (uint64_t num_ops: num_ops_counters) {
-//        std::cerr << num_ops << std::endl;
-//    }
     return std::accumulate(num_ops_counters.begin(), num_ops_counters.end(), 0ULL);
 }
 
@@ -289,14 +282,13 @@ int main(int argc, char** argv) {
     if (true) {
         const int num_runs = 3;
         for (auto & param: config.params) {
-//            std::cerr << param.first << " " << param.second << std::endl;
             uint64_t sum = 0;
             for (int i = 0; i < num_runs; i++) {
                 uint64_t mops = throughput_benchmark(param.first, param.second, false);
                 sum += mops;
             }
             sum /= num_runs;
-            std::cerr << sum << std::endl;
+            std::cerr << sum / 1'000'000 << std::endl;
         }
         return 0;
     }
