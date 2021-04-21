@@ -231,12 +231,15 @@ public:
     const std::vector<std::size_t> & get_max_queue_sizes() const {
         return max_queue_sizes;
     }
-    std::size_t size() {
+    std::size_t size() const {
         std::size_t sum = 0;
         for (auto & q: queues) {
             sum += q.first.size();
         }
         return sum;
+    }
+    uint16_t get_num_queues() const {
+        return num_queues;
     }
 };
 

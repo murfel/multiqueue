@@ -152,31 +152,33 @@ void write_answer(std::ostream & ostream, const DistVector & dists) {
 }
 
 /* The first implementation should be the reference implementation (sequential). */
-void check(std::vector<BindedImpl> impls) {
+void check(std::vector<BindedImpl> impls, int num_iterations) {
     DistVector correct_answer;
     for (std::size_t i = 0; i < impls.size(); i++) {
-        const auto & f = impls[i].first;
-        const auto & impl_name = impls[i].second;
+        for (int iteration = 0; iteration < num_iterations; iteration++) {
+            const auto& f = impls[i].first;
+            const auto& impl_name = impls[i].second;
 
-        timer timer;
-        auto p = measure_time<DistsAndStatistics>([&f, &timer] { return f(timer); });
-        auto dists_and_statistics = p.first;
-        auto time_ms = p.second;
+            timer timer;
+            auto p = measure_time<DistsAndStatistics>([&f, &timer] { return f(timer); });
+            auto dists_and_statistics = p.first;
+            auto time_ms = p.second;
 
-        std::cerr << impl_name << " elapsed time: " << time_ms.count() << " ms" << std::endl;
-        const DistVector &dists = dists_and_statistics.get_dists();
+            std::cerr << timer.get_total().count() << std::endl;
+            const DistVector& dists = dists_and_statistics.get_dists();
 
-        bool mismatched = false;
-        if (i == 0) {
-            correct_answer = dists;
-        } else {
-            mismatched = are_mismatched(correct_answer, dists);
-        }
+            bool mismatched = false;
+            if (i==0) {
+                correct_answer = dists;
+            }
+            else {
+                mismatched = are_mismatched(correct_answer, dists);
+            }
 
-        if (mismatched) {
-            std::ofstream output(impl_name + ".out" + std::to_string(i));
-            std::chrono::milliseconds elapsed = measure_time([&output, &dists]() { write_answer(output, dists); });
-            std::cerr << "Writing elapsed time: " << elapsed.count() << " s" << std::endl;
+            if (mismatched) {
+                std::ofstream output(impl_name+".out"+std::to_string(i));
+                std::chrono::milliseconds elapsed = measure_time([&output, &dists]() { write_answer(output, dists); });
+            }
         }
     }
 }
@@ -184,6 +186,8 @@ void check(std::vector<BindedImpl> impls) {
 void ops_thread_routine(Multiqueue<QueueElement> & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
     const auto max_value = (std::size_t)1e8;
     const auto max_elements = (std::size_t)1e8;
+
+    cached_random<uint16_t>::next(q.get_num_queues(), 1'000);
 
     barrier.wait();
 if (monotonic) {
@@ -244,6 +248,8 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     const auto max_value = (std::size_t)1e8;
     const auto max_elems = (std::size_t)1e8;
 
+    cached_random<uint16_t>::next(num_threads * size_multiple, 1'000);
+
     std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
@@ -280,9 +286,6 @@ int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {
-            std::cerr << param.first << " " << param.second << std::endl;
-        }
-        for (auto & param: config.params) {
             throughput_benchmark(param.first, param.second, true);
         }
         return 0;
@@ -290,7 +293,7 @@ int main(int argc, char** argv) {
     auto impls = create_impls(config.params, config.run_seq, config.one_queue_reserve_size);
     auto binded_impls = bind_impls(impls, config.graph);
     if (config.check) {
-        check(binded_impls);
+        check(binded_impls, 1);
     } else {
         for (const auto & impl : binded_impls) {
             benchmark::RegisterBenchmark(impl.second.c_str(), &BM_benchmark, impl)->Unit(benchmark::kMillisecond)
