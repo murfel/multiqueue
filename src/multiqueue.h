@@ -21,7 +21,9 @@ const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
 template<class T>
 struct padded {
     T first;
-    volatile char pad[PADDING];
+    volatile char pad[PADDING]{};
+    explicit padded(T && first)
+            :first(std::move(first)) { }
 };
 
 template<class T>
@@ -67,14 +69,13 @@ public:
     LockablePriorityQueueWithEmptyElement(std::size_t reserve_size, const T empty_element) :
             queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {}
 
-    LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) :
-            queue(ReservablePriorityQueue<T>(512)), empty_element(o.empty_element) {}
+    LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) = delete;
 
-    LockablePriorityQueueWithEmptyElement & operator=(const LockablePriorityQueueWithEmptyElement & o) {
-        queue = o.queue;
-        empty_element = o.empty_element;
-        return *this;
-    }
+    LockablePriorityQueueWithEmptyElement(LockablePriorityQueueWithEmptyElement && o) noexcept :
+            queue(std::move(o.queue)), empty_element(std::move(o.empty_element)) { }
+
+    LockablePriorityQueueWithEmptyElement & operator=(const LockablePriorityQueueWithEmptyElement & o) = delete;
+    LockablePriorityQueueWithEmptyElement & operator=(LockablePriorityQueueWithEmptyElement && o) = delete;
 
     void push(T value) {
         T old_top = empty_element;
@@ -193,9 +194,7 @@ public:
             empty_element(empty_element), max_queue_sizes(num_queues, 0) {
         queues.reserve(num_queues);
         for (std::size_t i = 0; i < num_queues; i++) {
-            QUEUEPADDING<LockablePriorityQueueWithEmptyElement<T>> p;
-            p.first = LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element);
-            queues.emplace_back(p);
+            queues.emplace_back(LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element));
         }
     }
     std::size_t gen_random_queue_index() {
