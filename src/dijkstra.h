@@ -193,6 +193,10 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
     for (std::thread & thread : threads) {
         thread.join();
     }
+    std::size_t sz = queue.size();
+    if (sz != 0) {
+        std::cerr << "Warning: Multiqueue.size = " << queue.size() << std::endl;
+    }
     DistVector dists = unwrap_vector_from_atomic(atomic_dists);
     return {dists};
 }
