@@ -112,7 +112,7 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
         int num_threads = param.first;
         int size_multiple = param.second;
         const QueueFactory multi_queue_factory = [num_threads, size_multiple, one_queue_reserve_size]()
-                { return std::make_unique<MultiQueue<QueueElement>>
+                { return std::make_unique<Multiqueue<QueueElement>>
                 (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size); };
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         impls.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph)
