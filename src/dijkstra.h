@@ -23,7 +23,7 @@
 #include <sched.h>
 #endif
 
-using Vertex = std::size_t;
+using Vertex = uint32_t;
 using DistType = int;
 using DistVector = std::vector<DistType>;
 using AtomicDistVector = std::vector<DISTPADDING<std::atomic<DistType>>>;
@@ -237,7 +237,7 @@ std::vector<DistType> unwrap_vector_from_atomic(const AtomicDistVector & atomic_
 }
 
 SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-        const QueueFactory & queue_factory, std::size_t start_vertex = 0) {
+        const QueueFactory & queue_factory, Vertex start_vertex = 0) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
     AbstractQueue<QueueElement> & queue = *queue_ptr;
@@ -263,7 +263,7 @@ SsspDijkstraDistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::si
     return {dists};
 }
 
-SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, std::size_t start_vertex = 0) {
+SsspDijkstraDistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex = 0) {
     std::size_t num_vertexes = graph.size();
     DistVector dists(num_vertexes, INT_MAX);
     std::vector<bool> removed_from_queue(num_vertexes, false);
