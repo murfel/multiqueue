@@ -2,6 +2,7 @@
 #define MULTIQUEUE_CACHED_RANDOM_H
 
 #include <vector>
+#include <random>
 
 template<class T>
 class cached_random {
