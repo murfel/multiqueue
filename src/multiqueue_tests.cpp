@@ -16,11 +16,8 @@ int main() {
     boost::barrier barrier(2);
     auto t = std::thread([&mq, &barrier, num_threads, size_multiple]{
         barrier.wait();
-        std::cerr << "hey" << std::endl;
         cached_random<uint16_t>::next(num_threads * size_multiple, 1'000);
-        std::cerr << "hey" << std::endl;
         mq.push({0, 13});
-        std::cerr << "hey" << std::endl;
         for (int i = 0; i < 100; i++) {
             QueueElement e = mq.pop();
             std::cout << e.get_dist() << std::endl;
@@ -28,6 +25,6 @@ int main() {
     });
     pin_thread(0, t);
     barrier.wait();
-
+    t.join();
 
 }
