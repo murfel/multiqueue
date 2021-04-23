@@ -140,7 +140,7 @@ std::vector<BindedImpl> bind_impls(const std::vector<Implementation>& impls, con
 bool are_mismatched(const DistVector & correct_answer, const DistVector & to_check) {
     auto mismatch = std::mismatch(correct_answer.begin(), correct_answer.end(), to_check.begin());
     if (mismatch.first != correct_answer.end()) {
-        std::cerr << "Mismatch: " << *mismatch.first << " != " << *mismatch.second << std::endl;
+        std::cerr << "Mismatch at " << (mismatch.second - to_check.begin()) << ": " <<  *mismatch.first << " != " << *mismatch.second << std::endl;
         return true;
     }
     return false;

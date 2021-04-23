@@ -18,7 +18,7 @@
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
 
-const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 100;
+const std::size_t DUMMY_ITERATION_BEFORE_EXITING = 1000;
 
 using RandomUintSize = uint16_t;
 
