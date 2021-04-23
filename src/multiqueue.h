@@ -40,17 +40,6 @@ struct not_padded {
     T first;
 };
 
-uint64_t random_fnv1a(uint64_t & seed) {
-    const static uint64_t offset = 14695981039346656037ULL;
-    const static uint64_t prime = 1099511628211;
-
-    uint64_t hash = offset;
-    hash ^= seed;
-    hash *= prime;
-    seed = hash;
-    return hash;
-}
-
 template <class T>
 class ReservablePriorityQueue : public boost::heap::d_ary_heap<T, boost::heap::arity<8>>
 {
