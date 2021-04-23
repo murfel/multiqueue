@@ -16,6 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include "multiqueue.h"
+#include "numa-mq/numa_mq.h"
 #include "cached_random.h"
 #include "timer.h"
 #include "utils.h"
@@ -72,7 +73,8 @@ public:
     }
 };
 
-using QueueFactory = std::function<std::unique_ptr<Multiqueue<QueueElement>>()>;
+template<class M>
+using QueueFactory = std::function<std::unique_ptr<M>()>;
 
 static const DistType EMPTY_ELEMENT_DIST = -1;
 static const QueueElement EMPTY_ELEMENT = {0, EMPTY_ELEMENT_DIST};
@@ -105,7 +107,8 @@ public:
     }
 };
 
-void thread_routine(const AdjList & graph, Multiqueue<QueueElement> & queue, AtomicDistVector & dists,
+template<class M>
+void thread_routine(const AdjList & graph, M & queue, AtomicDistVector & dists,
         AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads, timer& timer,
         int thread_id, boost::barrier& barrier) {
 
@@ -174,19 +177,20 @@ std::vector<DistType> unwrap_vector_from_atomic(const AtomicDistVector & atomic_
     return regular_vector;
 }
 
+template<class M>
 DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-        const QueueFactory & queue_factory, Vertex start_vertex, timer& timer) {
+        const QueueFactory<M> & queue_factory, Vertex start_vertex, timer& timer) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
     cached_random<RandomUintSize>::next(num_threads * 4, 100'000'000);
-    Multiqueue<QueueElement> & queue = *queue_ptr;
+    M & queue = *queue_ptr;
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
     atomic_dists[0].first = 0;
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t i = 0; i < num_threads; i++) {
-        threads.emplace_back(thread_routine, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
+        threads.emplace_back(thread_routine<M>, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
                 std::ref(atomic_dists), false, num_threads, std::ref(timer), i, std::ref(barrier));
         pin_thread(i, threads.back());
     }

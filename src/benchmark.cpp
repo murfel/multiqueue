@@ -6,6 +6,7 @@
 
 #include "dijkstra.h"
 #include "timer.h"
+#include "numa-mq/numa_mq.h"
 
 using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, timer &)>, std::string>;
 using BindedImpl = std::pair<std::function<DistsAndStatistics(timer &)>, std::string>;
@@ -105,6 +106,7 @@ Config process_input(int argc, char** argv) {
     return Config(params, graph, one_queue_reserve_size, check, run_seq);
 }
 
+template<class M>
 std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>& params, bool run_seq,
         size_t one_queue_reserve_size) {
     std::vector<Implementation> impls;
@@ -117,12 +119,12 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
     for (const auto & param: params) {
         int num_threads = param.first;
         int size_multiple = param.second;
-        const QueueFactory multi_queue_factory = [num_threads, size_multiple, one_queue_reserve_size]()
-                { return std::make_unique<Multiqueue<QueueElement>>
+        const QueueFactory<M> multi_queue_factory = [num_threads, size_multiple, one_queue_reserve_size]()
+                { return std::make_unique<M>
                 (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size); };
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
         impls.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph, timer& timer)
-                { return calc_sssp_dijkstra(graph, num_threads, multi_queue_factory, 0, timer); }, impl_name);
+                { return calc_sssp_dijkstra<M>(graph, num_threads, multi_queue_factory, 0, timer); }, impl_name);
     }
     return impls;
 }
@@ -290,7 +292,7 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
-    auto impls = create_impls(config.params, config.run_seq, config.one_queue_reserve_size);
+    auto impls = create_impls<numa_mq<QueueElement>>(config.params, config.run_seq, config.one_queue_reserve_size);
     auto binded_impls = bind_impls(impls, config.graph);
     if (config.check) {
         check(binded_impls, 1);

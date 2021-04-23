@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Wall -Wextra -pedantic -
 set(BOOST_ROOT "~/boost/")
 find_package(Boost REQUIRED COMPONENTS thread)
 
-add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/cached_random.h src/timer.h src/utils.h src/utils.cpp)
+add_executable(mq src/benchmark.cpp src/dijkstra.h src/multiqueue.h src/cached_random.h src/timer.h src/utils.h src/utils.cpp src/numa-mq/numa_mq.h src/numa-mq/numa_mq.cpp)
 target_link_libraries(mq PRIVATE benchmark Boost::thread)
 target_link_directories(mq PRIVATE ~/benchmark/build/src)
 target_include_directories(mq PRIVATE ~/benchmark/include)
