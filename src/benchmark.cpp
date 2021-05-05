@@ -265,13 +265,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
         threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
-        #ifdef __linux__
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(thread_id, &cpuset);
-        int rc = pthread_setaffinity_np(threads.back().native_handle(), sizeof(cpu_set_t), &cpuset);
-        (void)rc;
-        #endif
+        pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
         thread.join();
