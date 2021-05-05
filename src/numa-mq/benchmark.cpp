@@ -261,9 +261,9 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     MQ q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
 //    pin_thread_native(0, pthread_self());
     for (std::size_t i = 0; i < init_size; i++) {
-        std::cerr << "hi" << std::endl;
+//        std::cerr << "hi" << std::endl;
         q.push(QueueElement(1, dice()));
-        std::cerr << "not hi" << std::endl;
+//        std::cerr << "not hi" << std::endl;
     }
     std::vector<uint64_t> num_ops_counters(num_threads);
     std::vector<std::thread> threads;

@@ -8,11 +8,11 @@ private:
     std::atomic_flag spinlock{false};
 public:
     void lock() {
-        std::cerr << "locking " << std::endl;
-        spinlock.clear();
+//        std::cerr << "locking " << std::endl;
+//        spinlock.clear();
         while (spinlock.test_and_set())
             ;
-        std::cerr << "locked!" << std::endl;
+//        std::cerr << "locked!" << std::endl;
     }
     void unlock() {
         spinlock.clear();

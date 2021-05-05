@@ -51,6 +51,11 @@ public:
         std::cerr << "done init numa mq with nodes: " << num_nodes << ", threads total " << num_threads << std::endl;
         std::cerr << "threads " << num_threads << std::endl;
     }
+    numa_mq() = delete;
+    numa_mq(const numa_mq& other) = delete;
+    numa_mq(numa_mq&& other) = delete;
+    numa_mq& operator=(const numa_mq& other) = delete;
+    numa_mq& operator=(numa_mq&& other) = delete;
     void push(T value) {
         thread_local int thread_id = sched_getcpu();
         thread_local int node_id = numa_node_of_cpu(thread_id) % mqs.size();
@@ -61,7 +66,7 @@ public:
         thread_local int thread_id = sched_getcpu();
         thread_local int node_id = numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        std::cerr << thread_id << " " << node_id << std::endl;
+        std::cerr << "pop" << thread_id << " " << node_id << std::endl;
         return mq.pop();
     }
     std::size_t size() const {

@@ -28,10 +28,15 @@ struct padded {
     T first;
     volatile char pad[PADDING]{};
     explicit padded(T && first)
-            :first(std::move(first)) { }
-//    ~padded() {
-//        std::cerr << "padded d-tor" << std::endl;
-//    }
+            :first(std::move(first)) { };
+    padded() = delete;
+    padded(const padded<T>& other) = delete;
+    padded(padded<T>&& other)  noexcept = default;  // !!!
+    padded<T>& operator=(const padded<T>& other) = delete;
+    padded<T>& operator=(padded<T>&& other) = delete;
+    ~padded() {
+        std::cerr << "padded d-tor" << std::endl;
+    }
 };
 
 template<class T>
@@ -143,15 +148,15 @@ private:
     void push_lock(T value) {
         std::size_t i = gen_random_queue_index();
         auto &queue = queues[i].first;
-        std::cerr << "got q " << i << std::endl;
-        std::cerr << queue.size() << std::endl;
+//        std::cerr << "got q " << i << std::endl;
+//        std::cerr << queue.size() << std::endl;
         queue.lock();
-        std::cerr << "q locked" << std::endl;
-        std::cerr << queue.size() << std::endl;
+//        std::cerr << "q locked" << std::endl;
+//        std::cerr << queue.size() << std::endl;
         queue.push(value);
-        std::cerr << "val pushed" << std::endl;
+//        std::cerr << "val pushed" << std::endl;
         queue.unlock();
-        std::cerr << "q unlocked" << std::endl;
+//        std::cerr << "q unlocked" << std::endl;
     }
 
     T pop_lock() {
@@ -238,6 +243,11 @@ public:
         }
         std::cerr << "MQ c-tor finished" << std::endl;
     }
+    Multiqueue() = delete;
+    Multiqueue(const Multiqueue<T>& other) = delete;
+    Multiqueue(Multiqueue<T>&& other) = delete;
+    Multiqueue<T>& operator=(const Multiqueue<T>& other) = delete;
+    Multiqueue<T>& operator=(Multiqueue<T>&& other) = delete;
     ~Multiqueue() {
         std::cerr << "MQ d-tor" << std::endl;
     }
@@ -245,7 +255,7 @@ public:
         return cached_random<RandomUintSize>::next();
     }
     void push(T value) {
-        std::cerr << "pushing" << std::endl;
+        //std::cerr << "pushing" << std::endl;
         if (num_queues == 1) {
             auto & q = queues.front().first;
             q.lock();

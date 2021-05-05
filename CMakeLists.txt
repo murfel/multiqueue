@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.7)
 project(multiqueue)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Wall -Wextra -pedantic -pthread -DPADDING=128 -DALIGNMENT=128 -DDISTPADDING=not_padded -DQUEUEPADDING=padded -march=native -lnuma")
+#option(USE_CLANG "build application with clang" ON) # OFF is the default
+#
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Wall -Wextra -pedantic -pthread -DPADDING=128 -DALIGNMENT=128 -DDISTPADDING=not_padded -DQUEUEPADDING=padded -march=native -lnuma -latomic")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 
 set(BOOST_ROOT "~/boost/")
 find_package(Boost REQUIRED COMPONENTS thread)
