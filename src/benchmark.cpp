@@ -185,7 +185,8 @@ void check(std::vector<BindedImpl> impls, int num_iterations) {
     }
 }
 
-void ops_thread_routine(Multiqueue<QueueElement> & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
+template <class MQ>
+void ops_thread_routine(MQ & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
     const auto max_value = (std::size_t)1e8;
     const auto max_elements = (std::size_t)1e8;
 
@@ -245,6 +246,7 @@ if (monotonic) {
 }
 }
 
+template <class MQ>
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
     const auto init_size = (std::size_t)1e6;
     const auto max_value = (std::size_t)1e8;
@@ -256,7 +258,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
-    Multiqueue<QueueElement> q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
+    MQ q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
     for (std::size_t i = 0; i < init_size; i++) {
         q.push(QueueElement(1, dice()));
     }
@@ -264,7 +266,7 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
-        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
+        threads.emplace_back(ops_thread_routine<MQ>, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
         pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
@@ -282,7 +284,7 @@ int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {
-            throughput_benchmark(param.first, param.second, true);
+            throughput_benchmark<numa_mq<QueueElement>>(param.first, param.second, true);
         }
         return 0;
     }

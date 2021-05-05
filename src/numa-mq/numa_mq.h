@@ -13,7 +13,7 @@
 
 #include "../utils.h"
 
-#define THREADS_PER_NODE 18
+#define THREADS_PER_NODE 12
 
 #include "../multiqueue.h"
 
@@ -48,16 +48,16 @@ public:
     }
     void push(T value) {
         thread_local int thread_id = sched_getcpu();
-        thread_local int node_id = numa_node_of_cpu(thread_id);
+        thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        std::cerr << thread_id << " " << node_id << std::endl;
+//        std::cerr << thread_id << " " << node_id << std::endl;
         mq.push(value);
     }
     T pop() {
         thread_local int thread_id = sched_getcpu();
-        thread_local int node_id = numa_node_of_cpu(thread_id);
+        thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        std::cerr << thread_id << " " << node_id << std::endl;
+//        std::cerr << thread_id << " " << node_id << std::endl;
         return mq.pop();
     }
     std::size_t size() const {
@@ -66,6 +66,9 @@ public:
             sum += mq->size();
         }
         return sum;
+    }
+    uint16_t get_num_queues() const {
+       return 12;
     }
 };
 
