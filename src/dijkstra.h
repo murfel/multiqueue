@@ -71,6 +71,12 @@ public:
     bool operator<(const QueueElement & o) const {
         return dist > o.get_dist();
     }
+    bool operator>(const QueueElement & o) const {
+        return dist < o.get_dist();
+    }
+    friend std::ostream& operator<<(std::ostream& os, const QueueElement& elem) {
+        return os << elem.dist << " ";
+    }
 };
 
 template<class M>
@@ -182,9 +188,18 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
         const QueueFactory<M> & queue_factory, Vertex start_vertex, timer& timer) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
-    cached_random<RandomUintSize>::next(num_threads * 4, 100'000'000);
+    std::cerr << "hey " << std::endl;
+    cached_random<RandomUintSize>::next(2, 100'000);
+    queue_ptr->push({1833, 1833});
+    std::cerr << "===========" << std::endl;
+    std::cerr << "another hey " << (*queue_ptr).size() << std::endl;
     M & queue = *queue_ptr;
+    std::cerr << "meow" << std::endl;
+    queue.size();
+    std::cerr << queue.size() << "sz " << std::endl;
+    std::cerr << "thread id " << std::this_thread::get_id() << std::endl;
     queue.push({start_vertex, 0});
+    std::cerr << "HOOOOOORAY!" << std::endl;
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
     atomic_dists[0].first = 0;
     std::vector<std::thread> threads;

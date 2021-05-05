@@ -185,7 +185,8 @@ void check(std::vector<BindedImpl> impls, int num_iterations) {
     }
 }
 
-void ops_thread_routine(Multiqueue<QueueElement> & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
+template <class MQ>
+void ops_thread_routine(MQ & q, boost::barrier & barrier, uint64_t & num_ops, bool monotonic) {
     const auto max_value = (std::size_t)1e8;
     const auto max_elements = (std::size_t)1e8;
 
@@ -245,6 +246,7 @@ if (monotonic) {
 }
 }
 
+template <class MQ>
 void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bool monotonic) {
     const auto init_size = (std::size_t)1e6;
     const auto max_value = (std::size_t)1e8;
@@ -256,15 +258,18 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
-    Multiqueue<QueueElement> q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
+    MQ q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
+//    pin_thread_native(0, pthread_self());
     for (std::size_t i = 0; i < init_size; i++) {
+        std::cerr << "hi" << std::endl;
         q.push(QueueElement(1, dice()));
+        std::cerr << "not hi" << std::endl;
     }
     std::vector<uint64_t> num_ops_counters(num_threads);
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t thread_id = 0; thread_id < num_threads; thread_id++) {
-        threads.emplace_back(ops_thread_routine, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
+        threads.emplace_back(ops_thread_routine<MQ>, std::ref(q), std::ref(barrier), std::ref(num_ops_counters[thread_id]), monotonic);
         pin_thread(thread_id, threads.back());
     }
     for (std::thread & thread : threads) {
@@ -279,10 +284,13 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
 }
 
 int main(int argc, char** argv) {
+    std::cerr << "thread id " << std::this_thread::get_id() << std::endl;
+
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {
-            throughput_benchmark(param.first, param.second, true);
+            std::cerr << param.first << std::endl;
+            throughput_benchmark<numa_mq<QueueElement>>(param.first, param.second, false);
         }
         return 0;
     }

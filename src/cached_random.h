@@ -10,11 +10,12 @@ public:
     T static next(T upto_excluding = 0, std::size_t cache_size = 0) {
         thread_local std::vector<T> values;
         thread_local std::size_t index = 0;
-        if (values.empty()) {
-            if (upto_excluding == 0 || cache_size == 0) {
+        if (values.empty() && (upto_excluding==0 || cache_size==0)) {
                 std::cerr << "The first call to cached_random.next should be with arguments" << std::endl;
                 exit(1);
-            }
+        }
+        if (upto_excluding != 0 && cache_size != 0) {
+            values.clear();
             std::default_random_engine generator{std::random_device()()};
             std::uniform_int_distribution<T> distribution(0, upto_excluding - 1);
             auto dice = [&distribution, &generator] { return distribution(generator); };

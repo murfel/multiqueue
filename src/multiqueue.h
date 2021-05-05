@@ -14,6 +14,7 @@
 #include "boost/heap/d_ary_heap.hpp"
 
 #include "cached_random.h"
+#include "../spinlock.h"
 
 // Set DISTPADDING and QUEUEPADDING to either of padded, aligned, or not_padded.
 // If using padded or aligned, set PADDING or ALIGNMENT, respectively.
@@ -28,6 +29,9 @@ struct padded {
     volatile char pad[PADDING]{};
     explicit padded(T && first)
             :first(std::move(first)) { }
+//    ~padded() {
+//        std::cerr << "padded d-tor" << std::endl;
+//    }
 };
 
 template<class T>
@@ -56,16 +60,23 @@ private:
     volatile char my_padding[128]{};
     ReservablePriorityQueue<T> queue;
     T empty_element;
-    std::atomic_flag spinlock = ATOMIC_FLAG_INIT;
+    Spinlock spinlock;
 public:
-    LockablePriorityQueueWithEmptyElement() = default;
+    LockablePriorityQueueWithEmptyElement() = delete;
+    ~LockablePriorityQueueWithEmptyElement() {
+        std::cerr << "PQ d-tor" << std::endl;
+    }
     LockablePriorityQueueWithEmptyElement(std::size_t reserve_size, const T empty_element) :
-            queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {}
+            queue(ReservablePriorityQueue<T>(reserve_size)), empty_element(empty_element) {
+        std::cerr << "PQ c-tor" << std::endl;
+    }
 
     LockablePriorityQueueWithEmptyElement(const LockablePriorityQueueWithEmptyElement & o) = delete;
 
     LockablePriorityQueueWithEmptyElement(LockablePriorityQueueWithEmptyElement && o) noexcept :
-            queue(std::move(o.queue)), empty_element(std::move(o.empty_element)) { }
+            queue(std::move(o.queue)), empty_element(std::move(o.empty_element)) {
+        std::cerr << "PQ move c-tor" << std::endl;
+    }
 
     LockablePriorityQueueWithEmptyElement & operator=(const LockablePriorityQueueWithEmptyElement & o) = delete;
     LockablePriorityQueueWithEmptyElement & operator=(LockablePriorityQueueWithEmptyElement && o) = delete;
@@ -111,11 +122,11 @@ public:
     }
 
     void lock() {
-        while (spinlock.test_and_set(std::memory_order_acquire));
+        spinlock.lock();
     }
 
     void unlock() {
-        spinlock.clear(std::memory_order_release);
+        spinlock.unlock();
     }
 };
 
@@ -132,9 +143,15 @@ private:
     void push_lock(T value) {
         std::size_t i = gen_random_queue_index();
         auto &queue = queues[i].first;
+        std::cerr << "got q " << i << std::endl;
+        std::cerr << queue.size() << std::endl;
         queue.lock();
+        std::cerr << "q locked" << std::endl;
+        std::cerr << queue.size() << std::endl;
         queue.push(value);
+        std::cerr << "val pushed" << std::endl;
         queue.unlock();
+        std::cerr << "q unlocked" << std::endl;
     }
 
     T pop_lock() {
@@ -148,35 +165,65 @@ private:
             auto & q1 = queues[std::min(i, j)].first;
             auto & q2 = queues[std::max(i, j)].first;
 
-            T e1 = q1.top_relaxed();
-            T e2 = q2.top_relaxed();
+            T e1 = q1.top();
+            T e2 = q2.top();
 
             if (e1 == empty_element && e2 == empty_element) {
                 continue;
             }
 
-            // reversed comparator because std::priority_queue is a max queue
-            if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
+            if (e1 == empty_element) {
                 q2.lock();
-                T e = q2.top();
-                if (e != e2) {
+                T e = q2.pop();
+                if (e == empty_element) {
                     q2.unlock();
                     continue;
                 }
-                e = q2.pop();
                 q2.unlock();
                 return e;
-            } else {
+            }
+
+            if (e2 == empty_element) {
                 q1.lock();
-                T e = q1.top();
-                if (e != e1) {
+                T e = q1.pop();
+                if (e == empty_element) {
                     q1.unlock();
                     continue;
                 }
-                e = q1.pop();
                 q1.unlock();
                 return e;
             }
+
+            auto &q = e1 < e2 ? q2 : q1;
+
+            q.lock();
+            T e = q.pop();
+            q.unlock();
+            return e;
+
+
+            // reversed comparator because std::priority_queue is a max queue
+//            if (e1 == empty_element || (e2 != empty_element && e1 < e2)) {
+//                q2.lock();
+//                T e = q2.top();
+//                if (e != e2) {
+//                    q2.unlock();
+//                    continue;
+//                }
+//                e = q2.pop();
+//                q2.unlock();
+//                return e;
+//            } else {
+//                q1.lock();
+//                T e = q1.top();
+//                if (e != e1) {
+//                    q1.unlock();
+//                    continue;
+//                }
+//                e = q1.pop();
+//                q1.unlock();
+//                return e;
+//            }
         }
         return empty_element;
     }
@@ -189,11 +236,16 @@ public:
         for (std::size_t i = 0; i < num_queues; i++) {
             queues.emplace_back(LockablePriorityQueueWithEmptyElement<T>(one_queue_reserve_size, empty_element));
         }
+        std::cerr << "MQ c-tor finished" << std::endl;
+    }
+    ~Multiqueue() {
+        std::cerr << "MQ d-tor" << std::endl;
     }
     RandomUintSize gen_random_queue_index() {
         return cached_random<RandomUintSize>::next();
     }
     void push(T value) {
+        std::cerr << "pushing" << std::endl;
         if (num_queues == 1) {
             auto & q = queues.front().first;
             q.lock();
