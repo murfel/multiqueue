@@ -21,7 +21,6 @@ template<class T>
 class numa_mq {
 private:
     std::vector<std::unique_ptr<Multiqueue<T>>> mqs;
-    std::mutex io_mutex;
 
     Multiqueue<T>& get_node_mq(int node_id) {
         return *mqs[node_id];
@@ -50,14 +49,12 @@ public:
         thread_local int thread_id = sched_getcpu();
         thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-//        std::cerr << thread_id << " " << node_id << std::endl;
         mq.push(value);
     }
     T pop() {
         thread_local int thread_id = sched_getcpu();
         thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-//        std::cerr << thread_id << " " << node_id << std::endl;
         return mq.pop();
     }
     std::size_t size() const {
