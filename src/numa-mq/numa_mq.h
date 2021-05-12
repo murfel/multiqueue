@@ -47,15 +47,16 @@ public:
     }
     void push(T value) {
         thread_local int thread_id = sched_getcpu();
-        thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
+        thread_local int node_id = numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
         mq.push(value);
     }
     T pop() {
         thread_local int thread_id = sched_getcpu();
-        thread_local int node_id = 0; //numa_node_of_cpu(thread_id);
+        thread_local int node_id = numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        return mq.pop();
+        T value = mq.pop();
+        return value;
     }
     std::size_t size() const {
         std::size_t sum = 0;
@@ -65,7 +66,8 @@ public:
         return sum;
     }
     uint16_t get_num_queues() const {
-       return 12;
+       // assume each node has Multiqueue of the same size
+       return mqs[0]->get_num_queues();
     }
 };
 
