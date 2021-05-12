@@ -161,13 +161,16 @@ void check(std::vector<BindedImpl> impls, int num_iterations) {
             const auto& f = impls[i].first;
             const auto& impl_name = impls[i].second;
 
-            timer timer;
-            auto p = measure_time<DistsAndStatistics>([&f, &timer] { return f(timer); });
-            auto dists_and_statistics = p.first;
-            auto time_ms = p.second;
+            DistVector dists;
+            std::thread([&f, &dists](){
+                pin_thread_native(0, pthread_self());
+                timer timer;
+                auto p = measure_time<DistsAndStatistics>([&f, &timer] { return f(timer); });
+                auto dists_and_statistics = p.first;
 
-            std::cerr << timer.get_total().count() << std::endl;
-            const DistVector& dists = dists_and_statistics.get_dists();
+                std::cerr << timer.get_total().count() << std::endl;
+                dists = dists_and_statistics.get_dists();
+            }).join();
 
             bool mismatched = false;
             if (i==0) {
@@ -252,13 +255,14 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
     const auto max_value = (std::size_t)1e8;
     const auto max_elems = (std::size_t)1e8;
 
-    cached_random<uint16_t>::next(num_threads * size_multiple, 1'000);
-
     std::default_random_engine generator{std::random_device()()};
     std::uniform_int_distribution<int> distribution(0, max_value);
     auto dice = [&distribution, &generator] { return distribution(generator); };
 
+    pin_thread_native(0, pthread_self());
+
     MQ q(num_threads, size_multiple, EMPTY_ELEMENT, max_elems);
+    cached_random<uint16_t>::next(q.get_num_queues(), 1'000);
     for (std::size_t i = 0; i < init_size; i++) {
         q.push(QueueElement(1, dice()));
     }
@@ -284,7 +288,9 @@ int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {
-            throughput_benchmark<numa_mq<QueueElement>>(param.first, param.second, true);
+            std::thread([&param]{
+                throughput_benchmark<numa_mq<QueueElement>>(param.first, param.second, false);
+            }).join();
         }
         return 0;
     }

@@ -191,7 +191,7 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
     boost::barrier barrier(num_threads);
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine<M>, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_dists), false, num_threads, std::ref(timer), i, std::ref(barrier));
+                std::ref(atomic_dists), false, THREADS_PER_NODE, std::ref(timer), i, std::ref(barrier));
         pin_thread(i, threads.back());
     }
     for (std::thread & thread : threads) {
