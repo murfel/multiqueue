@@ -1,11 +1,11 @@
-#ifndef MULTIQUEUE_CACHED_RANDOM_H
-#define MULTIQUEUE_CACHED_RANDOM_H
+#ifndef MULTIQUEUE_CACHED_RANDOM_REAL_H
+#define MULTIQUEUE_CACHED_RANDOM_REAL_H
 
 #include <vector>
 #include <random>
 
 template<class T>
-class cached_random {
+class cached_random_real {
 public:
     T static next(T upto_excluding = 0, std::size_t cache_size = 0) {
         thread_local std::vector<T> values;
@@ -16,7 +16,7 @@ public:
                 exit(1);
             }
             std::default_random_engine generator{std::random_device()()};
-            std::uniform_int_distribution<T> distribution(0, upto_excluding - 1);
+            std::uniform_real_distribution<T> distribution(0, upto_excluding - 1);
             auto dice = [&distribution, &generator] { return distribution(generator); };
             for (std::size_t i = 0; i < cache_size; i++) {
                 values.push_back(dice());
@@ -28,4 +28,4 @@ public:
     }
 };
 
-#endif //MULTIQUEUE_CACHED_RANDOM_H
+#endif //MULTIQUEUE_CACHED_RANDOM_REAL_H

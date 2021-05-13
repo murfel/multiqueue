@@ -18,6 +18,7 @@
 #include "multiqueue.h"
 #include "numa-mq/numa_mq.h"
 #include "cached_random.h"
+#include "cached_random_real.h"
 #include "timer.h"
 #include "utils.h"
 

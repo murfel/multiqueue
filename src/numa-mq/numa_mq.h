@@ -13,10 +13,12 @@
 
 #include "../utils.h"
 
-#define NUM_NODES 2
-#define THREADS_PER_NODE 12
+#define THREADS_PER_NODE 18
 
 #include "../multiqueue.h"
+
+#include "../cached_random.h"
+#include "../cached_random_real.h"
 
 template<class T>
 class numa_mq {

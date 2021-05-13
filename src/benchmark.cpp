@@ -8,6 +8,9 @@
 #include "timer.h"
 #include "numa-mq/numa_mq.h"
 
+#include "cached_random.h"
+#include "cached_random_real.h"
+
 using Implementation = std::pair<std::function<DistsAndStatistics(const AdjList &, timer &)>, std::string>;
 using BindedImpl = std::pair<std::function<DistsAndStatistics(timer &)>, std::string>;
 
@@ -286,6 +289,8 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
 }
 
 int main(int argc, char** argv) {
+    std::cerr << "fuck my fucking life" << std::endl;
+
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {
