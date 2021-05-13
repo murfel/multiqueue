@@ -194,6 +194,7 @@ void ops_thread_routine(MQ & q, boost::barrier & barrier, uint64_t & num_ops, bo
     const auto max_elements = (std::size_t)1e8;
 
     cached_random<uint16_t>::next(q.get_num_queues(), 1'000);
+    cached_random_real<double>::next(1, 1'000);
 
     barrier.wait();
 if (monotonic) {
