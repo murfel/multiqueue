@@ -13,6 +13,7 @@
 
 #include "../utils.h"
 
+#define NUM_NODES 2
 #define THREADS_PER_NODE 12
 
 #include "../multiqueue.h"
@@ -20,6 +21,7 @@
 template<class T>
 class numa_mq {
 private:
+    const double p_pop_local = 0.5;
     std::vector<std::unique_ptr<Multiqueue<T>>> mqs;
 
     Multiqueue<T>& get_node_mq(int node_id) {
@@ -45,18 +47,29 @@ public:
             thread.join();
         }
     }
-    void push(T value) {
+    void push(T value, int node_id = -1) {
         thread_local int thread_id = sched_getcpu();
-        thread_local int node_id = numa_node_of_cpu(thread_id);
-        thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        mq.push(value);
+        thread_local int current_node_id = numa_node_of_cpu(thread_id);
+        thread_local Multiqueue<T>& mq = get_node_mq(current_node_id);
+        if (node_id == -1) {
+            mq.push(value);
+        } else {
+            get_node_mq(node_id).push(value);
+        }
     }
     T pop() {
         thread_local int thread_id = sched_getcpu();
         thread_local int node_id = numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(node_id);
-        T value = mq.pop();
-        return value;
+        thread_local int next_node = 0;
+        if (cached_random_real<double>::next() < p_pop_local || mqs.size() == 1) {
+            return mq.pop();
+        } else {
+            do {
+                next_node = (next_node + 1) % mqs.size();
+            } while (next_node == node_id);
+            return get_node_mq(next_node).pop();
+        }
     }
     std::size_t size() const {
         std::size_t sum = 0;

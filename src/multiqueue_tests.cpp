@@ -17,6 +17,7 @@ int main() {
     auto t = std::thread([&mq, &barrier, num_threads, size_multiple]{
         barrier.wait();
         cached_random<uint16_t>::next(num_threads * size_multiple, 1'000);
+        cached_random_real<double>::next(1, 1'000);
         mq.push({0, 13});
         for (int i = 0; i < 100; i++) {
             QueueElement e = mq.pop();

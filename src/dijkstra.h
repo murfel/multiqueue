@@ -113,6 +113,7 @@ void thread_routine(const AdjList & graph, M & queue, AtomicDistVector & dists,
         int thread_id, boost::barrier& barrier) {
 
     cached_random<RandomUintSize>::next(num_threads * 4, 1'000);
+    cached_random_real<double>::next(1, 1'000);
 
     barrier.wait();
     if (thread_id == 0) {
@@ -182,7 +183,8 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
         const QueueFactory<M> & queue_factory, Vertex start_vertex, timer& timer) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
-    cached_random<RandomUintSize>::next(num_threads * 4, 100'000'000);
+    cached_random<RandomUintSize>::next(THREADS_PER_NODE * 4, 100'000'000);
+    cached_random_real<double>::next(1, 1'000);
     M & queue = *queue_ptr;
     queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
