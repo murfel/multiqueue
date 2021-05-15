@@ -289,8 +289,6 @@ void throughput_benchmark(std::size_t num_threads, std::size_t size_multiple, bo
 }
 
 int main(int argc, char** argv) {
-    std::cerr << "fuck my fucking life" << std::endl;
-
     Config config = process_input(argc, argv);
     if (config.graph.empty()) {
         for (auto & param: config.params) {

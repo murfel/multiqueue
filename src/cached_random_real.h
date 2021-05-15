@@ -16,7 +16,8 @@ public:
                 exit(1);
             }
             std::default_random_engine generator{std::random_device()()};
-            std::uniform_real_distribution<T> distribution(0, upto_excluding - 1);
+            std::uniform_real_distribution<T> distribution(0,
+                    std::nextafter(upto_excluding, std::numeric_limits<double>::max()));
             auto dice = [&distribution, &generator] { return distribution(generator); };
             for (std::size_t i = 0; i < cache_size; i++) {
                 values.push_back(dice());
