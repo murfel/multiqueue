@@ -84,8 +84,9 @@ class DistsAndStatistics {
 private:
     DistVector dists;
     DistVector vertex_pulls_counts;
-    std::size_t num_pushes;
+    std::size_t num_pushes{};
     std::vector<std::size_t> max_queue_sizes;
+    std::vector<QueueElement> leftover_elements;
 public:
     DistsAndStatistics(
             DistVector dists, DistVector vertex_pulls_counts, size_t num_pushes,
@@ -93,6 +94,8 @@ public:
             dists(std::move(dists)), vertex_pulls_counts(std::move(vertex_pulls_counts)), num_pushes(num_pushes),
             max_queue_sizes(std::move(max_queue_sizes)) {}
     DistsAndStatistics(DistVector dists) :dists(std::move(dists)) {};
+    DistsAndStatistics(DistVector dists, std::vector<QueueElement> leftover_elements) :
+            dists(std::move(dists)), leftover_elements(std::move(leftover_elements)) {};
     DistsAndStatistics() = default;
     const DistVector &get_dists() const {
         return dists;
@@ -218,15 +221,18 @@ public:
     }
 };
 
-DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex, timer& timer) {
-    std::size_t num_vertexes = graph.size();
+DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex, timer& timer, int iterations = -1) {
+    int num_vertexes = (int)graph.size();
     DistVector dists(num_vertexes, std::numeric_limits<DistType>::max());
     std::vector<bool> removed_from_queue(num_vertexes, false);
     std::priority_queue<SimpleQueueElement> q;
     dists[start_vertex] = 0;
     q.push({start_vertex, 0});
     timer.resume_timing();
-    for (std::size_t i = 0; i < num_vertexes; i++) {
+    if (iterations == -1) {
+        iterations = num_vertexes;
+    }
+    for (int i = 0; i < iterations; i++) {
         while (!q.empty() && removed_from_queue[q.top().vertex]) {
             q.pop();
         }
@@ -247,5 +253,15 @@ DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex s
         }
     }
     timer.pause_timing();
+    if (iterations != num_vertexes) {
+        std::vector<QueueElement> leftover_elements;
+        while (!q.empty()) {
+            if (!removed_from_queue[q.top().vertex]) {
+                leftover_elements.emplace_back(q.top().vertex, q.top().dist);
+            }
+            q.pop();
+        }
+        return {dists, leftover_elements};
+    }
     return {dists};
 }
