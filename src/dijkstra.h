@@ -111,6 +111,61 @@ public:
     }
 };
 
+class SimpleQueueElement {
+public:
+    SimpleQueueElement(Vertex vertex, DistType dist) : vertex(vertex), dist(dist) {}
+    Vertex vertex;
+    DistType dist;
+    bool operator<(const SimpleQueueElement & o) const {
+        return dist > o.dist;
+    }
+};
+
+DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex, timer& timer, int iterations = -1) {
+    int num_vertexes = (int)graph.size();
+    DistVector dists(num_vertexes, std::numeric_limits<DistType>::max());
+    std::vector<bool> removed_from_queue(num_vertexes, false);
+    std::priority_queue<SimpleQueueElement> q;
+    dists[start_vertex] = 0;
+    q.push({start_vertex, 0});
+    timer.resume_timing();
+    if (iterations == -1) {
+        iterations = num_vertexes;
+    }
+    for (int i = 0; i < iterations; i++) {
+        while (!q.empty() && removed_from_queue[q.top().vertex]) {
+            q.pop();
+        }
+        if (q.empty()) {
+            break;
+        }
+        Vertex from = q.top().vertex;
+        DistType dist = q.top().dist;
+        q.pop();
+        removed_from_queue[from] = true;
+        for (const Edge & edge: graph[from]) {
+            Vertex to = edge.get_to();
+            DistType new_dist = dist + edge.get_weight();
+            if (dists[to] > new_dist) {
+                dists[to] = new_dist;
+                q.push({to, new_dist});
+            }
+        }
+    }
+    timer.pause_timing();
+    if (iterations != num_vertexes) {
+        std::vector<QueueElement> leftover_elements;
+        while (!q.empty()) {
+            if (!removed_from_queue[q.top().vertex]) {
+                leftover_elements.emplace_back(q.top().vertex, q.top().dist);
+            }
+            q.pop();
+        }
+        return {dists, leftover_elements};
+    }
+    return {dists};
+}
+
 template<class M>
 void thread_routine(const AdjList & graph, M & queue, AtomicDistVector & dists,
         AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads, timer& timer,
@@ -208,60 +263,5 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
         std::cerr << "Warning: Multiqueue.size = " << queue.size() << std::endl;
     }
     DistVector dists = unwrap_vector_from_atomic(atomic_dists);
-    return {dists};
-}
-
-class SimpleQueueElement {
-public:
-    SimpleQueueElement(Vertex vertex, DistType dist) : vertex(vertex), dist(dist) {}
-    Vertex vertex;
-    DistType dist;
-    bool operator<(const SimpleQueueElement & o) const {
-        return dist > o.dist;
-    }
-};
-
-DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex start_vertex, timer& timer, int iterations = -1) {
-    int num_vertexes = (int)graph.size();
-    DistVector dists(num_vertexes, std::numeric_limits<DistType>::max());
-    std::vector<bool> removed_from_queue(num_vertexes, false);
-    std::priority_queue<SimpleQueueElement> q;
-    dists[start_vertex] = 0;
-    q.push({start_vertex, 0});
-    timer.resume_timing();
-    if (iterations == -1) {
-        iterations = num_vertexes;
-    }
-    for (int i = 0; i < iterations; i++) {
-        while (!q.empty() && removed_from_queue[q.top().vertex]) {
-            q.pop();
-        }
-        if (q.empty()) {
-            break;
-        }
-        Vertex from = q.top().vertex;
-        DistType dist = q.top().dist;
-        q.pop();
-        removed_from_queue[from] = true;
-        for (const Edge & edge: graph[from]) {
-            Vertex to = edge.get_to();
-            DistType new_dist = dist + edge.get_weight();
-            if (dists[to] > new_dist) {
-                dists[to] = new_dist;
-                q.push({to, new_dist});
-            }
-        }
-    }
-    timer.pause_timing();
-    if (iterations != num_vertexes) {
-        std::vector<QueueElement> leftover_elements;
-        while (!q.empty()) {
-            if (!removed_from_queue[q.top().vertex]) {
-                leftover_elements.emplace_back(q.top().vertex, q.top().dist);
-            }
-            q.pop();
-        }
-        return {dists, leftover_elements};
-    }
     return {dists};
 }
