@@ -53,7 +53,7 @@ public:
         thread_local int thread_id = sched_getcpu();
         thread_local int current_node_id = numa_node_of_cpu(thread_id);
         thread_local Multiqueue<T>& mq = get_node_mq(current_node_id);
-        if (node_id == -1) {
+        if (node_id == -1 || node_id == current_node_id) {
             mq.push(value);
         } else {
             get_node_mq(node_id).push(value);
