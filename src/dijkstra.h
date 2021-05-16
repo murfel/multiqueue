@@ -109,6 +109,9 @@ public:
     const std::vector<std::size_t> &get_max_queue_sizes() const {
         return max_queue_sizes;
     }
+    const std::vector<QueueElement> &get_leftover_elements() const {
+        return leftover_elements;
+    }
 };
 
 class SimpleQueueElement {
@@ -168,10 +171,10 @@ DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex s
 
 template<class M>
 void thread_routine(const AdjList & graph, M & queue, AtomicDistVector & dists,
-        AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads, timer& timer,
-        int thread_id, boost::barrier& barrier) {
+        AtomicDistVector & vertex_pull_counts, bool collect_statistics, int num_threads, int size_multiple,
+        timer& timer, int thread_id, boost::barrier& barrier) {
 
-    cached_random<RandomUintSize>::next(num_threads * 4, 1'000);
+    cached_random<RandomUintSize>::next(num_threads * size_multiple, 1'000);
     cached_random_real<double>::next(1, 1'000);
 
     barrier.wait();
@@ -184,8 +187,15 @@ void thread_routine(const AdjList & graph, M & queue, AtomicDistVector & dists,
         QueueElement elem = queue.pop();
         // TODO: fix that most treads might exit if one thread is stuck at cut-vertex
         if (elem.get_dist() == EMPTY_ELEMENT_DIST) {
-//            std::cerr << "bye" << std::endl;
-            break;
+            if (cached_random_real<double>::next() < 0) {
+                break;
+            } else {
+                if (queue.size() == 0) {
+                    break;
+                } else {
+                    continue;
+                }
+            }
         }
         Vertex v = elem.get_vertex();
         DistType v_dist = elem.get_dist();
@@ -239,20 +249,36 @@ std::vector<DistType> unwrap_vector_from_atomic(const AtomicDistVector & atomic_
 
 template<class M>
 DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_threads,
-        const QueueFactory<M> & queue_factory, Vertex start_vertex, timer& timer) {
+        const QueueFactory<M> & queue_factory, Vertex start_vertex, timer& timer, int size_multiple,
+        int seq_iterations = 0) {
     std::size_t num_vertexes = graph.size();
     auto queue_ptr = queue_factory();
-    cached_random<RandomUintSize>::next(THREADS_PER_NODE * 4, 100'000'000);
+    cached_random<RandomUintSize>::next(THREADS_PER_NODE * size_multiple, 100'000'000);
     cached_random_real<double>::next(1, 1'000);
     M & queue = *queue_ptr;
-    queue.push({start_vertex, 0});
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
-    atomic_dists[0].first = 0;
+    // init queue
+    seq_iterations = 100'000;
+    if (seq_iterations == 0) {
+        queue.push({start_vertex, 0});
+        atomic_dists[start_vertex].first = 0;
+    } else {
+        class timer t;
+        DistsAndStatistics das = calc_sssp_dijkstra_sequential(graph, start_vertex, t, seq_iterations);
+        for (int i = 0; i < (int)das.get_dists().size(); i++) {
+            atomic_dists[i].first = das.get_dists()[i];
+        }
+        for (QueueElement e: das.get_leftover_elements()) {
+            queue.push(e);
+        }
+    }
+    // finish init
     std::vector<std::thread> threads;
     boost::barrier barrier(num_threads);
     for (std::size_t i = 0; i < num_threads; i++) {
         threads.emplace_back(thread_routine<M>, std::cref(graph), std::ref(queue), std::ref(atomic_dists),
-                std::ref(atomic_dists), false, THREADS_PER_NODE, std::ref(timer), i, std::ref(barrier));
+                std::ref(atomic_dists), false, THREADS_PER_NODE, size_multiple, std::ref(timer), i,
+                std::ref(barrier));
         pin_thread(i, threads.back());
     }
     for (std::thread & thread : threads) {

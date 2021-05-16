@@ -126,8 +126,9 @@ std::vector<Implementation> create_impls(const std::vector<std::pair<int, int>>&
                 { return std::make_unique<M>
                 (num_threads, size_multiple, EMPTY_ELEMENT, one_queue_reserve_size); };
         std::string impl_name = std::to_string(num_threads) + " " + std::to_string(size_multiple);
-        impls.emplace_back([num_threads, multi_queue_factory] (const AdjList & graph, timer& timer)
-                { return calc_sssp_dijkstra<M>(graph, num_threads, multi_queue_factory, 0, timer); }, impl_name);
+        impls.emplace_back([num_threads, multi_queue_factory, size_multiple] (const AdjList & graph, timer& timer)
+                { return calc_sssp_dijkstra<M>(graph, num_threads, multi_queue_factory, 0, timer,
+                        size_multiple); }, impl_name);
     }
     return impls;
 }
