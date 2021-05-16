@@ -27,6 +27,8 @@
 #include <sched.h>
 #endif
 
+const int SEQUENTIAL_ITERATIONS = 100;
+
 using Vertex = uint32_t;
 using DistType = int;
 using DistVector = std::vector<DistType>;
@@ -131,11 +133,13 @@ DistsAndStatistics calc_sssp_dijkstra_sequential(const AdjList & graph, Vertex s
     std::priority_queue<SimpleQueueElement> q;
     dists[start_vertex] = 0;
     q.push({start_vertex, 0});
-    timer.resume_timing();
     if (iterations == -1) {
         iterations = num_vertexes;
     }
     for (int i = 0; i < iterations; i++) {
+        if (i == SEQUENTIAL_ITERATIONS) {
+            timer.resume_timing();
+        }
         while (!q.empty() && removed_from_queue[q.top().vertex]) {
             q.pop();
         }
@@ -258,7 +262,7 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
     M & queue = *queue_ptr;
     AtomicDistVector atomic_dists = initialize_atomic_vector(num_vertexes, std::numeric_limits<int>::max());
     // init queue
-    seq_iterations = 100'000;
+    seq_iterations = SEQUENTIAL_ITERATIONS;
     if (seq_iterations == 0) {
         queue.push({start_vertex, 0});
         atomic_dists[start_vertex].first = 0;
