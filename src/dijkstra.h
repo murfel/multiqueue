@@ -272,8 +272,11 @@ DistsAndStatistics calc_sssp_dijkstra(const AdjList & graph, std::size_t num_thr
         for (int i = 0; i < (int)das.get_dists().size(); i++) {
             atomic_dists[i].first = das.get_dists()[i];
         }
+        std::default_random_engine generator{std::random_device()()};
+        std::uniform_int_distribution<int> distribution(0, queue.get_num_nodes() - 1);
+        auto dice = [&distribution, &generator] { return distribution(generator); };
         for (QueueElement e: das.get_leftover_elements()) {
-            queue.push(e);
+            queue.push(e, dice());
         }
     }
     // finish init

@@ -84,6 +84,9 @@ public:
        // assume each node has Multiqueue of the same size
        return mqs[0]->get_num_queues();
     }
+    int get_num_nodes() const {
+        return (int)mqs.size();
+    }
 };
 
 #endif //MULTIQUEUE_NUMA_MQ_H
