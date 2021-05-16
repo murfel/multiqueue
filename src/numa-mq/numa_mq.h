@@ -23,7 +23,7 @@
 template<class T>
 class numa_mq {
 private:
-    const double p_pop_local = 0.5;
+    const double p_pop_local = 0.9;
     std::vector<std::unique_ptr<Multiqueue<T>>> mqs;
 
     Multiqueue<T>& get_node_mq(int node_id) {
