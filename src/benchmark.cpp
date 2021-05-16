@@ -116,7 +116,10 @@ Config process_input(int argc, char** argv) {
     }
 
     std::vector<std::pair<int, int>> params = read_params(params_filename);
-    AdjList graph = read_input(input_filename);
+    AdjList graph;
+    if (input_filename != "mops") {
+        graph = read_input(input_filename);
+    }
     return Config(params, graph, one_queue_reserve_size, run_type, run_seq);
 }
 
@@ -279,7 +282,8 @@ uint64_t throughput_benchmark(std::size_t num_threads, std::size_t size_multiple
 
 int main(int argc, char** argv) {
     Config config = process_input(argc, argv);
-    if (true) {
+    if (config.graph.empty()) {
+        std::cerr << "mops" << std::endl;
         const int num_runs = 3;
         for (auto & param: config.params) {
             uint64_t sum = 0;
