@@ -23,7 +23,7 @@ template<class T>
 struct padded {
     T first;
     volatile char pad[PADDING]{};
-    explicit padded(std::size_t reserve_size) : first(BinaryHeap(reserve_size)) {}
+    explicit padded(std::size_t reserve_size) : first(my_d_ary_heap<>(reserve_size)) {}
 };
 
 template<class T>
@@ -49,7 +49,7 @@ inline uint64_t random_fnv1a(uint64_t & seed) {
 
 class Multiqueue {
 private:
-    std::vector<QUEUE_PADDING<BinaryHeap>> queues;
+    std::vector<QUEUE_PADDING<my_d_ary_heap<>>> queues;
     const std::size_t num_queues;
 public:
     Multiqueue(int num_threads, int size_multiple, std::size_t one_queue_reserve_size) :

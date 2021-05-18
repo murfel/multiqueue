@@ -129,7 +129,7 @@ Sequential       4437 ms         4437 ms            1
 
 NB: We oftenly refer to _queue_ or _subqueue_ meaning one of the `K * num_threads` single-threaded priority queues. We implement these queues as std::priority_queue or a custom binary heap.
 
-The four parts of the implementation are BinaryHeap, Multiqueue, Dijkstra sequential and parallel implementations, and the code for running, checking, and benchmarking.
+The four parts of the implementation are my_d_ary_heap, Multiqueue, Dijkstra sequential and parallel implementations, and the code for running, checking, and benchmarking.
 
 The parallel Dijkstra algorithm is almost identical to the sequential: while the priority queue is not empty, pop a vertex with the lowest distance (or close to the lowest, in our relaxed case), relax its children and push them to the priority queue. This routine is executed by each thread.
 
@@ -160,7 +160,7 @@ We plan to replace the naive spinlock with MCH or CLH cache invalidation optimiz
 In `Multiqueue.pop`, we use an optimization (described in the paper) of peeking the two top elements without locking the queues and subsequently locking just one queue with the lesser value. If, after locking the queue, the top element has changed, we run the procedure again. In our experiments, this optimization provided a slight performance gain.
 
 ### Tests
-The test directory contains smoke tests for BinaryHeap, Multiqueue, and parallel Dijkstra and longs for extended corner-case and unit testing and coverage.
+The test directory contains smoke tests for my_d_ary_heap, Multiqueue, and parallel Dijkstra and longs for extended corner-case and unit testing and coverage.
 
 ### Legacy
 

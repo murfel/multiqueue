@@ -82,7 +82,8 @@ public:
 static const DistType empty_element_dist = -1;
 static const QueueElement empty_element(0, empty_element_dist);
 
-class BinaryHeap {
+template<int d = 8>
+class my_d_ary_heap {
 private:
     size_t size = 0;
     std::vector<QueueElement *> elements;
@@ -113,13 +114,11 @@ private:
             top_element.store(const_cast<QueueElement *>(&empty_element), std::memory_order_relaxed);
             return;
         }
-        while (get_left_child(i) < size) {
-            size_t l = get_left_child(i);
-            size_t r = get_right_child(i);
-            size_t j = r < size && *elements[r] > *elements[l] ? r : l;
-            if (*elements[i] > *elements[j]) break;
-            swap(i, j);
-            i = j;
+        while (has_at_least_one_child(i)) {
+            size_t c = get_biggest_child(i);
+            if (*elements[i] > *elements[c]) break;
+            swap(i, c);
+            i = c;
         }
         top_element.store(elements[0], std::memory_order_relaxed);
     }
@@ -127,17 +126,28 @@ private:
         elements[i] = element;
         elements[i]->index = i;
     }
-    static inline size_t get_parent(size_t i) { return (i - 1) / 2; }
-    static inline size_t get_left_child(size_t i) { return i * 2 + 1; }
-    static inline size_t get_right_child(size_t i) { return i * 2 + 2; }
+    static inline size_t get_parent(size_t i) { return (i - 1) / d; }
+    bool has_at_least_one_child(size_t i) {
+        return i * d + 1 < size;
+    }
+    size_t get_biggest_child(size_t i) {
+        // assume i has at least one child
+        int big_i = 1;
+        for (int k = 2; (k <= d) && (i * d + k < size); k++) {
+            if (*elements[i * d + big_i] < *elements[i * d + k]) {
+                big_i = k;
+            }
+        }
+        return i * d + big_i;
+    }
 public:
-    explicit BinaryHeap(size_t reserve_size) {
+    explicit my_d_ary_heap(size_t reserve_size) {
         elements.resize(reserve_size);
     }
-    BinaryHeap(const BinaryHeap & o) = delete;
-    BinaryHeap(BinaryHeap&& o) noexcept : elements(std::move(o.elements)) {};
-    BinaryHeap& operator=(const BinaryHeap & o) = delete;
-    BinaryHeap& operator=(BinaryHeap && o) noexcept {
+    my_d_ary_heap(const my_d_ary_heap & o) = delete;
+    my_d_ary_heap(my_d_ary_heap&& o) noexcept :elements(std::move(o.elements)) {};
+    my_d_ary_heap& operator=(const my_d_ary_heap & o) = delete;
+    my_d_ary_heap& operator=(my_d_ary_heap && o) noexcept {
         elements = std::move(o.elements);
         return *this;
     }
@@ -159,7 +169,7 @@ public:
     void push(QueueElement * element) {
         size++;
         if (size == elements.size()) {
-            throw std::logic_error("BinaryHeap reserve size is exceeded");
+            throw std::logic_error("my_d_ary_heap reserve size is exceeded");
         }
         set(size - 1, element);
         sift_up(size - 1);
